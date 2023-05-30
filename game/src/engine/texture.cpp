@@ -1,9 +1,9 @@
 #include "texture.hpp"
 
+#include <glad/gl.h>
+
 #include <utility>
 #include <stdexcept>
-
-#include <glad/gl.h>
 
 namespace FoxEngine
 {	

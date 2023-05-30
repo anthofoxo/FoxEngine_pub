@@ -5,22 +5,20 @@ typedef struct GLFWwindow fe_window_handle;
 
 namespace FoxEngine
 {
-	typedef void (*GlProc)(void);
-
 	struct WindowCreateInfo final
 	{
 		int width = 1280;
 		int height = 720;
-		const char* title = "Game";
+		const char* title = "FoxEngine";
 	};
 
 	// May be moved behind an abstraction later if we change window apis
 	class Window final
 	{
 	public:
-		static void WaitEvents();
+		static void PollEvents();
 		static void SwapInterval(int interval);
-		static GlProc GetProcAddress(const char* procname);
+		static bool LoadGLFunctions();
 
 		Window() noexcept = default;
 		Window(const WindowCreateInfo& info);

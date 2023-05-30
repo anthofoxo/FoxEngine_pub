@@ -1,5 +1,10 @@
 #include "shader.hpp"
 
+#include "experimental.hpp"
+#include "blob.hpp"
+
+#include <glad/gl.h>
+
 #include <array>
 #include <span>
 #include <string>
@@ -9,11 +14,6 @@
 #include <memory>
 #include <iostream>
 #include <unordered_map>
-
-#include <glad/gl.h>
-
-#include "experimental.hpp"
-#include "blob.hpp"
 
 namespace FoxEngine
 {

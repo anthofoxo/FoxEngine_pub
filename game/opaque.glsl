@@ -13,7 +13,7 @@ uniform mat4 uProjection;
 void main(void)
 {
 	gl_Position = uProjection * uView * uModel * vec4(inPosition, 1.0);
-	vNormal = inNormal;
+	vNormal = transpose(inverse(mat3(uModel))) * inNormal;
 }
 
 #elif defined FE_FRAG

@@ -1,18 +1,19 @@
 #include "window.hpp"
 
+#include <GLFW/glfw3.h>
+#include <glad/gl.h>
+
 #include <utility>
 #include <stdexcept>
-
-#include <GLFW/glfw3.h>
 
 namespace FoxEngine
 {
 	static bool s_ready = false;
 	static unsigned int s_count = 0;
 
-	void Window::WaitEvents()
+	void Window::PollEvents()
 	{
-		glfwWaitEvents();
+		glfwPollEvents();
 	}
 
 	void Window::SwapInterval(int interval)
@@ -20,15 +21,21 @@ namespace FoxEngine
 		glfwSwapInterval(interval);
 	}
 
-	GlProc Window::GetProcAddress(const char* procname)
+	bool Window::LoadGLFunctions()
 	{
-		return glfwGetProcAddress(procname);
+		return gladLoadGL(&glfwGetProcAddress);
 	}
 
 	Window::Window(const WindowCreateInfo& info)
 	{
 		if (!s_ready)
 		{
+			// we sould register error callbacks
+			//static void glfw_error_callback(int error, const char* description)
+			//{
+			//	fprintf(stderr, "GLFW Error %d: %s\n", error, description);
+			//}
+
 			if (!glfwInit())
 				throw std::runtime_error("Failed to initialize glfw");
 

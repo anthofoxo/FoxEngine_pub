@@ -65,7 +65,7 @@ feProject "game"
 		vendor_loc .. "glad2/include",
 		--vendor_loc .. "zlib",
 		--vendor_loc .. "zlib/contrib/minizip",
-		--vendor_loc .. "imgui",
+		vendor_loc .. "imgui",
 		--vendor_loc .. "assimp_config_h_fix",
 		--vendor_loc .. "assimp/include",
 		vendor_loc .. "glm",
@@ -83,10 +83,10 @@ feProject "game"
 		"glfw",
 		"glad2",
 		
-		"assimp"
+		"assimp",
 
 		--"zlib",
-		--"imgui"
+		"imgui"
 		--"harfbuzz",
 		--"msdfgen",
 		--"freetype",
@@ -199,24 +199,24 @@ feProject "glad2"
 --		"%{prj.location}/contrib/minizip/*.h",
 --	}
 --	includedirs "%{prj.location}"
---feProject "imgui"
---    language "C++"
---    files
---	{
---		"%{prj.location}/*.cpp",
---		"%{prj.location}/*.h",
---		"%{prj.location}/backends/imgui_impl_opengl3.cpp",
---		"%{prj.location}/backends/imgui_impl_opengl3.h",
---		"%{prj.location}/backends/imgui_impl_glfw.cpp",
---		"%{prj.location}/backends/imgui_impl_glfw.h",
---		"%{prj.location}/misc/cpp/*.cpp",
---		"%{prj.location}/misc/cpp/*.h",
---	}
---	includedirs 
---	{
---		"%{prj.location}",
---		vendor_loc .. "glfw/include"
---	}
+feProject "imgui"
+    language "C++"
+    files
+	{
+		"%{prj.location}/*.cpp",
+		"%{prj.location}/*.h",
+		"%{prj.location}/backends/imgui_impl_opengl3.cpp",
+		"%{prj.location}/backends/imgui_impl_opengl3.h",
+		"%{prj.location}/backends/imgui_impl_glfw.cpp",
+		"%{prj.location}/backends/imgui_impl_glfw.h",
+		"%{prj.location}/misc/cpp/*.cpp",
+		"%{prj.location}/misc/cpp/*.h",
+	}
+	includedirs 
+	{
+		"%{prj.location}",
+		vendor_loc .. "glfw/include"
+	}
 
 feProject "assimp"
 	warnings "Off"

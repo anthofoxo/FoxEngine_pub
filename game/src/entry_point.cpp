@@ -1,38 +1,41 @@
-#include <GLFW/glfw3.h>
-#include <glad/gl.h>
-
 #include "engine/window.hpp"
 #include "engine/texture.hpp"
 #include "engine/shader.hpp"
 #include "engine/mesh.hpp"
-
-#include <iostream>
-#include <thread>
-#include <atomic>
-#include <string>
-#include <span>
-
-
 #include "engine/log.hpp"
 
-// Move implmentation to a different file, perhaps vendor/impl.cpp ???
-#define STB_IMAGE_IMPLEMENTATION
 #include "vendor/stb_image.h"
 
-#include <fstream>
-#include <vector>
-#include <optional>
-#include <string_view>
-
-#include <stdexcept>
+#include <GLFW/glfw3.h>
+#include <glad/gl.h>
 
 #include <assimp/Importer.hpp>
 #include <assimp/scene.h>
 #include <assimp/postprocess.h>
 
+#include <entt/entt.hpp>
+
+#define GLM_ENABLE_EXPERIMENTAL
 #include <glm/glm.hpp>
 #include <glm/gtc/matrix_transform.hpp>
 #include <glm/gtc/type_ptr.hpp>
+#include <glm/gtc/quaternion.hpp>
+#include <glm/gtx/matrix_decompose.hpp>
+#include <glm/gtx/quaternion.hpp>
+
+#include <string>
+#include <span>
+#include <vector>
+#include <string_view>
+#include <stdexcept>
+
+//#define IMGUI_DISABLE_OBSOLETE_KEYIO
+//#define IMGUI_DISABLE_OBSOLETE_FUNCTIONS
+#include "imgui.h"
+#include "backends/imgui_impl_opengl3.h"
+#include "backends/imgui_impl_glfw.h"
+
+// Should we use YAML or JSON for configs
 
 // Guidelines for the order of includes should be made
 
@@ -103,29 +106,100 @@ static std::unique_ptr<FoxEngine::Mesh> load_mesh(std::string_view resource)
 		});
 }
 
-// Put inside engine struct
-static std::atomic_bool sRunning = true;
-
-void engine_main()
+struct Transform final
 {
-	FoxEngine::LogInfo("Welcome to FoxEngine");
+	glm::vec3 translation{};
+	glm::quat orientation = glm::identity<glm::quat>();
+	glm::vec3 scale = glm::vec3(1.0f);
 
-	FoxEngine::Window window = FoxEngine::WindowCreateInfo{};
+	glm::mat4 ToMatrix() const
+	{
+		glm::mat4 matrix = glm::identity<glm::mat4>();
+		matrix = glm::translate(matrix, translation);
+		matrix *= glm::toMat4(orientation);
+		matrix = glm::scale(matrix, scale);
+		return matrix;
+	}
 
-	// Create an engine structure to contain this
+	glm::mat4 ToInverseMatrix() const
+	{
+		return glm::inverse(ToMatrix());
+	}
 
-	glfwSetWindowCloseCallback(window.Handle(), [](GLFWwindow*)
+	void FromMatrix(const glm::mat4& matrix)
+	{
+		glm::vec3 skew;
+		glm::vec4 perspective;
+		glm::decompose(matrix, scale, orientation, translation, skew, perspective);
+	}
+};
+
+struct TransformComponent final
+{
+	Transform transform;
+	std::string name = "unnamed";
+	std::string tag = "default";
+};
+
+struct MeshFilterComponent final
+{
+	std::shared_ptr<FoxEngine::Mesh> mesh;
+};
+
+namespace FoxEngine
+{
+	class Engine final
+	{
+	public:
+		void Start()
 		{
-			sRunning = false;
-		});
+			mWindow = FoxEngine::WindowCreateInfo{};
 
-	std::thread thread = std::thread([&]()
-		{
-			window.MakeContextCurrent();
-			gladLoadGL(&FoxEngine::Window::GetProcAddress);
+			// a bindable input type should be provided, or a way to attach custom listeners
+			struct Input
+			{
+				// IsKeyDown, CursorPos
+				// or
+				// AddListener
+			};
+
+			glfwSetWindowUserPointer(mWindow.Handle(), this);
+
+			glfwSetWindowCloseCallback(mWindow.Handle(), [](GLFWwindow* window)
+				{
+					static_cast<Engine*>(glfwGetWindowUserPointer(window))->mDispatcher.enqueue<WindowCloseEvent>();
+				});
+
+			IMGUI_CHECKVERSION();
+			ImGui::CreateContext();
+			ImGuiIO& io = ImGui::GetIO();
+			io.ConfigFlags |= ImGuiConfigFlags_NavEnableKeyboard;     // Enable Keyboard Controls
+			io.ConfigFlags |= ImGuiConfigFlags_NavEnableGamepad;      // Enable Gamepad Controls
+			io.ConfigFlags |= ImGuiConfigFlags_DockingEnable;         // Enable Docking
+			io.ConfigFlags |= ImGuiConfigFlags_ViewportsEnable;       // Enable Multi-Viewport / Platform Windows
+
+			io.Fonts->AddFontFromFileTTF("Roboto-Regular.ttf", 16.0f);
+
+			ImGui::StyleColorsDark();
+
+			if (io.ConfigFlags & ImGuiConfigFlags_ViewportsEnable)
+			{
+				ImGuiStyle& style = ImGui::GetStyle();
+				style.WindowRounding = 0.0f;
+				style.Colors[ImGuiCol_WindowBg].w = 1.0f;
+			}
+
+			mWindow.MakeContextCurrent();
+
+			// Setup Platform/Renderer backends
+			ImGui_ImplGlfw_InitForOpenGL(mWindow.Handle(), true);
+			ImGui_ImplOpenGL3_Init("#version 330 core");
+
+			
+			FoxEngine::Window::LoadGLFunctions(); // may fail
 			FoxEngine::Window::SwapInterval(-1);
 
-			stbi_set_flip_vertically_on_load(true);
+			mDispatcher.sink<WindowCloseEvent>().connect<&Engine::OnClose>(this);
 
 			std::unique_ptr<FoxEngine::Shader> opaqueShader = FoxEngine::Shader::Create(
 				{
@@ -133,74 +207,328 @@ void engine_main()
 					.debugName = "opaque.glsl"
 				});
 
-			FoxEngine::Mesh::Vertex vertices[] =
 			{
-				{ glm::vec3(-1, +1, +0), glm::vec3(+0, +0, -1) },
-				{ glm::vec3(-1, -1, +0), glm::vec3(+0, +0, -1) }, 
-				{ glm::vec3(+1, +1, +0), glm::vec3(+0, +0, -1) },
-				{ glm::vec3(+1, -1, +0), glm::vec3(+0, +0, -1) }
-			};
+				entt::handle entity = { mRegistry, mRegistry.create() };
+				TransformComponent& transform = entity.emplace<TransformComponent>();
+				MeshFilterComponent& meshFilter = entity.emplace<MeshFilterComponent>();
+				meshFilter.mesh = load_mesh("dragon.obj");
+				transform.name = "dergon";
+				transform.transform.translation.z = -10;
+			}
 
-			FoxEngine::Mesh::Index indices[] = { 0, 1, 2, 2, 1, 3 };
+			entt::handle foxEntity;
 
-			std::unique_ptr<FoxEngine::Mesh> mesh = FoxEngine::Mesh::Create(
-				{
-					.vertices = vertices,
-					.indices = indices
-				});
+			{
+				entt::handle entity = { mRegistry, mRegistry.create() };
+				TransformComponent& transform = entity.emplace<TransformComponent>();
+				MeshFilterComponent& meshFilter = entity.emplace<MeshFilterComponent>();
+				meshFilter.mesh = load_mesh("fox.obj");
+				transform.name = "foxo";
+				transform.tag = "icon_only";
+				transform.transform.translation.z = -4;
 
-			std::unique_ptr<FoxEngine::Mesh> dragon_mesh = load_mesh("dragon.obj");
+				transform.transform.orientation = glm::rotate(transform.transform.orientation, glm::radians(180.f), glm::vec3(1, 0, 0));
 
-			// More defaults need set
+				foxEntity = entity;
+			}
+
+			glClearColor(0, 0, 0, 0);
+			glClearDepth(1);
+			glDepthFunc(GL_LEQUAL);
+			glEnable(GL_CULL_FACE);
 			glEnable(GL_DEPTH_TEST);
-			glClearColor(0.7f, 0.8f, 0.9f, 1.0f);
+			glEnable(GL_TEXTURE_CUBE_MAP_SEAMLESS);
+			glFrontFace(GL_CCW);
+			glCullFace(GL_BACK);
+			glPolygonMode(GL_FRONT_AND_BACK, GL_FILL);
+			glDisable(GL_MULTISAMPLE);
 
-			while (sRunning)
+			unsigned int fbo = 0;
+			unsigned int fboTex = 0;
+			unsigned int fboDep = 0;
+			int vpw = 0, vph = 0;
+
+			unsigned int iconFbo;
+			unsigned int iconTex;
+			unsigned int iconDep;
+			int size = 64;
+
+			glGenTextures(1, &iconTex);
+			glBindTexture(GL_TEXTURE_2D, iconTex);
+			glTexImage2D(GL_TEXTURE_2D, 0, GL_RGBA8, size, size, 0, GL_RGBA, GL_UNSIGNED_BYTE, nullptr);
+			glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_WRAP_S, GL_CLAMP_TO_EDGE);
+			glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_WRAP_T, GL_CLAMP_TO_EDGE);
+			glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_WRAP_R, GL_CLAMP_TO_EDGE);
+			glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MIN_FILTER, GL_LINEAR);
+			glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MAG_FILTER, GL_NEAREST);
+
+			glGenRenderbuffers(1, &iconDep);
+			glBindRenderbuffer(GL_RENDERBUFFER, iconDep);
+			glRenderbufferStorage(GL_RENDERBUFFER, GL_DEPTH_COMPONENT16, size, size);
+
+			glGenFramebuffers(1, &iconFbo);
+			glBindFramebuffer(GL_FRAMEBUFFER, iconFbo);
+			glFramebufferTexture2D(GL_FRAMEBUFFER, GL_COLOR_ATTACHMENT0, GL_TEXTURE_2D, iconTex, 0);
+			glFramebufferRenderbuffer(GL_FRAMEBUFFER, GL_DEPTH_ATTACHMENT, GL_RENDERBUFFER, iconDep);
+
+			std::unique_ptr<char[]> pixels = std::make_unique<char[]>(size * size * 4);
+			glm::mat4 projection;
+
+			double lastTime = glfwGetTime();
+			double currentTime;
+			double deltaTime = 1.;
+
+			bool showDemoWindow = false;
+			bool showViewport = true;
+
+			while (mRunning)
 			{
+				FoxEngine::Window::PollEvents();
+				mDispatcher.update();
+
+				currentTime = glfwGetTime();
+				deltaTime = currentTime - lastTime;
+				lastTime = currentTime;
+
+				ImGui_ImplOpenGL3_NewFrame();
+				ImGui_ImplGlfw_NewFrame();
+				ImGui::NewFrame();
+
+				ImGui::DockSpaceOverViewport();
+
+				if (ImGui::BeginMainMenuBar())
+				{
+					if (ImGui::BeginMenu("File"))
+					{
+						if (ImGui::MenuItem("Quit")) mRunning = false;
+						
+						ImGui::EndMenu();
+					}
+
+					if (ImGui::BeginMenu("View"))
+					{
+						ImGui::MenuItem("Viewport", nullptr, &showViewport);
+						ImGui::MenuItem("ImGui Demo Window", nullptr, &showDemoWindow);
+
+						ImGui::EndMenu();
+					}
+
+					ImGui::EndMainMenuBar();
+				}
+
+				if (showDemoWindow)
+					ImGui::ShowDemoWindow(&showDemoWindow);
+
+				if (showViewport)
+				{
+					ImGui::PushStyleVar(ImGuiStyleVar_WindowPadding, { 0, 0 });
+
+					if (ImGui::Begin("Viewport", &showViewport))
+					{
+						ImVec2 size = ImGui::GetContentRegionAvail();
+
+						if (size.x != 0 && size.y != 0)
+						{
+							// if size changed, resize is required
+							if (vpw != size.x || vph != size.y)
+							{
+								vpw = size.x;
+								vph = size.y;
+
+								if (fbo) glDeleteFramebuffers(1, &fbo);
+								if (fboTex) glDeleteTextures(1, &fboTex);
+								if (fboDep) glDeleteRenderbuffers(1, &fboDep);
+
+								glGenTextures(1, &fboTex);
+								glBindTexture(GL_TEXTURE_2D, fboTex);
+								glTexImage2D(GL_TEXTURE_2D, 0, GL_RGBA8, vpw, vph, 0, GL_RGBA, GL_UNSIGNED_BYTE, nullptr);
+								glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_WRAP_S, GL_CLAMP_TO_EDGE);
+								glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_WRAP_T, GL_CLAMP_TO_EDGE);
+								glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_WRAP_R, GL_CLAMP_TO_EDGE);
+								glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MIN_FILTER, GL_LINEAR);
+								glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MAG_FILTER, GL_NEAREST);
+
+								glGenRenderbuffers(1, &fboDep);
+								glBindRenderbuffer(GL_RENDERBUFFER, fboDep);
+								glRenderbufferStorage(GL_RENDERBUFFER, GL_DEPTH_COMPONENT16, vpw, vph);
+
+								glGenFramebuffers(1, &fbo);
+								glBindFramebuffer(GL_FRAMEBUFFER, fbo);
+								glFramebufferTexture2D(GL_FRAMEBUFFER, GL_COLOR_ATTACHMENT0, GL_TEXTURE_2D, fboTex, 0);
+								glFramebufferRenderbuffer(GL_FRAMEBUFFER, GL_DEPTH_ATTACHMENT, GL_RENDERBUFFER, fboDep);
+							}
+
+							// Perform rendering
+							{
+								glBindFramebuffer(GL_FRAMEBUFFER, fbo);
+								glViewport(0, 0, vpw, vph);
+
+								glClearColor(0.7f, 0.8f, 0.9f, 1.0f);
+								glClear(GL_COLOR_BUFFER_BIT | GL_DEPTH_BUFFER_BIT);
+
+								// projection resize should also be bound to window resize operations
+								projection = glm::perspectiveFov(glm::radians(90.0f), (float)vpw, (float)vph, 0.1f, 100.0f);
+
+								// Uniforms will not stay forever, prefer uniform buffer blocks
+								opaqueShader->Bind();
+								opaqueShader->UniformMat4f("uProjection", glm::value_ptr(projection));
+								opaqueShader->UniformMat4f("uView", glm::value_ptr(glm::identity<glm::mat4>()));
+
+								auto view = mRegistry.view<TransformComponent, MeshFilterComponent>();
+
+
+
+								for (auto entity : view)
+								{
+									auto [transform, meshFilter] = view.get(entity);
+
+									if (transform.tag == "icon_only") continue;
+
+									opaqueShader->UniformMat4f("uModel", glm::value_ptr(transform.transform.ToMatrix()));
+									meshFilter.mesh->Draw();
+								}
+
+
+							}
+
+
+							ImGui::Image((ImTextureID)(intptr_t)fboTex, { (float)vpw, (float)vph }, { 0, 1 }, { 1, 0 });
+						}
+
+
+					}
+					ImGui::End();
+
+					ImGui::PopStyleVar();
+				}
+
+				
+
 				// Use callbacks for this, no neeed to do this every frame,
 				// later on this will trigger buffer and texture reallocation
 				int w, h;
-				glfwGetFramebufferSize(window.Handle(), &w, &h);
-				glViewport(0, 0, w, h);
+				glfwGetFramebufferSize(mWindow.Handle(), &w, &h);
 
-				glClear(GL_COLOR_BUFFER_BIT | GL_DEPTH_BUFFER_BIT);
 
-				// projection resize should also be bound to window resize operations
-				glm::mat4 projection = glm::perspectiveFov(glm::radians(90.0f), (float)w, (float)h, 0.1f, 100.0f);
+				if (w != 0 && h != 0)
+				{
+					static double rotateDelta = 0.0;
+					rotateDelta += deltaTime;
+
+					static double timer = 0.0;
+					timer += deltaTime;
+
+
+
+					if (timer > 1.0 / 8.0)
+					{
+						timer = 0.0;
+
+
+
+						// Rotate foxo
+						Transform& t = foxEntity.get<TransformComponent>().transform;
+						t.orientation = glm::rotate(t.orientation, (float)glm::radians(45.0 * rotateDelta), glm::vec3(0, 1, 0));
+						rotateDelta = 0.0;
+
+						glBindFramebuffer(GL_FRAMEBUFFER, iconFbo);
+						glViewport(0, 0, size, size);
+
+						glClearColor(0, 0, 0, 0);
+						glClear(GL_COLOR_BUFFER_BIT | GL_DEPTH_BUFFER_BIT);
+
+						// projection resize should also be bound to window resize operations
+						projection = glm::perspectiveFov(glm::radians(60.0f), (float)size, (float)size, 0.01f, 10.0f);
+
+						// Uniforms will not stay forever, prefer uniform buffer blocks
+						opaqueShader->Bind();
+						opaqueShader->UniformMat4f("uProjection", glm::value_ptr(projection));
+						opaqueShader->UniformMat4f("uView", glm::value_ptr(glm::identity<glm::mat4>()));
+						opaqueShader->UniformMat4f("uModel", glm::value_ptr(t.ToMatrix()));
+						foxEntity.get<MeshFilterComponent>().mesh->Draw();
+
+						glBindTexture(GL_TEXTURE_2D, iconTex);
+						glGetTexImage(GL_TEXTURE_2D, 0, GL_RGBA, GL_UNSIGNED_BYTE, pixels.get());
+
+						GLFWimage image;
+						image.width = size;
+						image.height = size;
+						image.pixels = (unsigned char*)pixels.get();
+
+						glfwSetWindowIcon(mWindow.Handle(), 1, &image);
+
+					}
+				}
+
 				
-				// Should come from object transfroms from ecs (doesn't exist)
-				glm::mat4 pos = glm::identity<glm::mat4>();
-				pos = glm::translate(pos, glm::vec3{ 0.0f, 0.0f, -10.f });
 
-				// Uniforms will not stay forever, prefer uniform buffer blocks
-				opaqueShader->Bind();
-				opaqueShader->UniformMat4f("uProjection", glm::value_ptr(projection));
-				opaqueShader->UniformMat4f("uView", glm::value_ptr(glm::identity<glm::mat4>()));
-				opaqueShader->UniformMat4f("uModel", glm::value_ptr(pos));
-				dragon_mesh->Draw();
+				glBindFramebuffer(GL_FRAMEBUFFER, 0);
+				glBindTexture(GL_TEXTURE_2D, 0);
 
-				window.SwapBuffers();
+				ImGui::Render();
+				int display_w, display_h;
+				glfwGetFramebufferSize(mWindow.Handle(), &display_w, &display_h);
+				glViewport(0, 0, display_w, display_h);
+				glClearColor(0, 0, 0, 1);
+				glClear(GL_COLOR_BUFFER_BIT | GL_DEPTH_BUFFER_BIT);
+				ImGui_ImplOpenGL3_RenderDrawData(ImGui::GetDrawData());
+
+				// Update and Render additional Platform Windows
+				// (Platform functions may change the current OpenGL context, so we save/restore it to make it easier to paste this code elsewhere.
+				//  For this specific demo app we could also call glfwMakeContextCurrent(window) directly)
+				if (ImGui::GetIO().ConfigFlags & ImGuiConfigFlags_ViewportsEnable)
+				{
+					GLFWwindow* backup_current_context = glfwGetCurrentContext();
+					ImGui::UpdatePlatformWindows();
+					ImGui::RenderPlatformWindowsDefault();
+					glfwMakeContextCurrent(backup_current_context);
+				}
+
+				mWindow.SwapBuffers();
 			}
-			
-			glfwPostEmptyEvent();
-		});
 
-	// This loop can also be used to refresh object pools in the resource loader
-	while (sRunning)
-		FoxEngine::Window::WaitEvents();
+			mDispatcher.disconnect(this);
+			mRegistry.clear();
 
-	thread.join();
+			ImGui_ImplOpenGL3_Shutdown();
+			ImGui_ImplGlfw_Shutdown();
+			ImGui::DestroyContext();
+		}
+	private:
+
+		// Create a structure within the window to hold events and a dispatcher for window events
+		// These must be heap allocated so they can be moved without reallocation
+		struct WindowCloseEvent {};
+
+		void OnClose(const WindowCloseEvent& e)
+		{
+			mRunning = false;
+		}
+
+		
+	public:
+		bool mRunning = true;
+		FoxEngine::Window mWindow;
+		entt::registry mRegistry;
+
+		entt::dispatcher mDispatcher{};
+	};
 }
 
 int main(int argc, char* argv[])
 {
+	FoxEngine::LogInfo("Welcome to FoxEngine");
+	stbi_set_flip_vertically_on_load(true);
+
+	FoxEngine::Engine engine;
+
 	try
 	{
-		engine_main();
+		engine.Start();
 	}
-	catch (const std::exception& e) // supposed to catch exceptions but doesn't???
+	catch (...)
 	{
-		std::cout << e.what() << '\n';
-		__debugbreak(); // MSVC only, fix this
+		// MSVC only
+		__debugbreak();
 	}
 }
