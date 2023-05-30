@@ -18,6 +18,7 @@ namespace FoxEngine
 		{
 			glm::vec3 position;
 			glm::vec3 normal;
+			glm::vec2 texCoord;
 		};
 
 		using Index = unsigned int;

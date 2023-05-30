@@ -1,59 +1,63 @@
 #pragma once
 
-// Texture is not final !!!
-// Entire texture api is due for change
+#include <string_view>
+#include <memory>
 
 namespace FoxEngine
 {
-	enum struct TextureWrap
-	{
-		REPEAT, CLAMP
-	};
-
-	enum struct TextureFilter
-	{
-		NEAREST, LINEAR
-	};
-
-	enum struct TextureFormat
-	{
-		RGBA8
-	};
-
-	struct TextureCreateInfo final
-	{
-		int width = 0;
-		int height = 0;
-		int depth = 0;
-		TextureFormat format;
-		TextureWrap wrap;
-		TextureFilter min;
-		TextureFilter mag;
-		const char* debug_name;
-	};
-
-	class Texture final
+	class Texture
 	{
 	public:
+		enum struct Wrap
+		{
+			Repeat, Clamp
+		};
+
+		enum struct Filter
+		{
+			Nearest, Linear
+		};
+
+		enum struct Format
+		{
+			Rgba8
+		};
+
+		struct CreateInfo final
+		{
+			int width = 0;
+			int height = 0;
+			int depth = 0;
+			Format format = Format::Rgba8;
+			Wrap wrap = Wrap::Repeat;
+			Filter min = Filter::Linear;
+			Filter mag = Filter::Linear;
+			std::string_view debugName;
+		};
+
+		struct UploadInfo final
+		{
+			int xoff = 0;
+			int yoff = 0;
+			int zoff = 0;
+			int width = 0;
+			int height = 0;
+			int depth = 0;
+			Format format = Format::Rgba8;
+			const void* pixels = nullptr;
+		};
+
+		static std::unique_ptr<Texture> Create(const CreateInfo& info);
+		static std::unique_ptr<Texture> Create(std::string_view resource);
+	public:
 		Texture() noexcept = default;
-		Texture(const TextureCreateInfo& info);
-		~Texture() noexcept;
+		virtual ~Texture() noexcept = default;
 		Texture(const Texture&) = delete;
 		Texture& operator=(const Texture&) = delete;
-		Texture(Texture&& other) noexcept;
-		Texture& operator=(Texture&& other) noexcept;
-		friend void swap(Texture& lhs, Texture& rhs) noexcept;
+		Texture(Texture&& other) noexcept = delete;
+		Texture& operator=(Texture&& other) noexcept = delete;
 
-		void Upload(int xoff, int width, TextureFormat format, const void* pixels);
-		void Upload(int xoff, int yoff, int width, int height, TextureFormat format, const void* pixels);
-		void Upload(int xoff, int yoff, int zoff, int width, int height, int depth, TextureFormat format, const void* pixels);
-
-		void Bind();
-
-		inline unsigned int Target() const noexcept { return m_target; }
-		inline unsigned int Handle() const noexcept { return m_handle; }
-	private:
-		unsigned int m_target = 0;
-		unsigned int m_handle = 0;
+		virtual void Upload(const UploadInfo& info) = 0;
+		virtual void Bind(unsigned int unit = 0) = 0;
 	};
 }

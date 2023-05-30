@@ -81,9 +81,9 @@ static std::unique_ptr<FoxEngine::Mesh> load_mesh(std::string_view resource)
 		vertex.normal.x = mesh->mNormals[i].x;
 		vertex.normal.y = mesh->mNormals[i].y;
 		vertex.normal.z = mesh->mNormals[i].z;
-		// Add texture coords and tangents when needed
-		// vertex.tex_coord.x = mesh->mTextureCoords[0][i].x;
-		// vertex.tex_coord.y = mesh->mTextureCoords[0][i].y;
+		// Add tangents when needed
+		vertex.texCoord.x = mesh->mTextureCoords[0][i].x;
+		vertex.texCoord.y = mesh->mTextureCoords[0][i].y;
 		vertices.push_back(std::move(vertex));
 	}
 
@@ -200,6 +200,24 @@ namespace FoxEngine
 			FoxEngine::Window::SwapInterval(-1);
 
 			mDispatcher.sink<WindowCloseEvent>().connect<&Engine::OnClose>(this);
+
+			std::unique_ptr<FoxEngine::Texture> defaultTex = FoxEngine::Texture::Create(
+				{
+					.width = 1,
+					.height = 1,
+					.debugName = "Default texture (white)"
+				});
+
+			char vals[]{255,255,255,255};
+
+			defaultTex->Upload(
+				{
+					.width = 1,
+					.height = 1,
+					.pixels = vals
+				});
+
+			std::unique_ptr<FoxEngine::Texture> foxTexture = FoxEngine::Texture::Create("fox.png");
 
 			std::unique_ptr<FoxEngine::Shader> opaqueShader = FoxEngine::Shader::Create(
 				{
@@ -376,7 +394,7 @@ namespace FoxEngine
 
 								auto view = mRegistry.view<TransformComponent, MeshFilterComponent>();
 
-
+								defaultTex->Bind();
 
 								for (auto entity : view)
 								{
@@ -445,6 +463,7 @@ namespace FoxEngine
 						opaqueShader->UniformMat4f("uProjection", glm::value_ptr(projection));
 						opaqueShader->UniformMat4f("uView", glm::value_ptr(glm::identity<glm::mat4>()));
 						opaqueShader->UniformMat4f("uModel", glm::value_ptr(t.ToMatrix()));
+						foxTexture->Bind(0);
 						foxEntity.get<MeshFilterComponent>().mesh->Draw();
 
 						glBindTexture(GL_TEXTURE_2D, iconTex);
@@ -526,8 +545,13 @@ int main(int argc, char* argv[])
 	{
 		engine.Start();
 	}
-	catch (...)
+	catch (std::exception& e)
 	{
+
+		
+
+
+		FoxEngine::LogCritical(e.what());
 		// MSVC only
 		__debugbreak();
 	}
