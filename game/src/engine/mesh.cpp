@@ -16,6 +16,10 @@ namespace FoxEngine
 			glGenVertexArrays(1, &mVao);
 			glBindVertexArray(mVao);
 
+			// Apply to buffer objects too with changes to the name
+			if (GLAD_GL_KHR_debug && !info.debugName.empty())
+				glObjectLabel(GL_VERTEX_ARRAY, mVao, info.debugName.size(), info.debugName.data());
+
 			glGenBuffers(1, &mVbo);
 			glBindBuffer(GL_ARRAY_BUFFER, mVbo);
 			glBufferData(GL_ARRAY_BUFFER, info.vertices.size_bytes(), info.vertices.data(), GL_STATIC_DRAW);

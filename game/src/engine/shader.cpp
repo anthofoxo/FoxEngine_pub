@@ -71,7 +71,7 @@ namespace FoxEngine
 
 			mHandle = glCreateProgram();
 
-			if (GLAD_GL_KHR_debug)
+			if (GLAD_GL_KHR_debug && !info.debugName.empty())
 				glObjectLabel(GL_PROGRAM, mHandle, info.debugName.size(), info.debugName.data());
 
 			glAttachShader(mHandle, vert);

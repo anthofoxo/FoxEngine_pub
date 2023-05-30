@@ -12,6 +12,9 @@
 #include <string>
 #include <span>
 
+
+#include "engine/log.hpp"
+
 // Move implmentation to a different file, perhaps vendor/impl.cpp ???
 #define STB_IMAGE_IMPLEMENTATION
 #include "vendor/stb_image.h"
@@ -100,13 +103,21 @@ static std::unique_ptr<FoxEngine::Mesh> load_mesh(std::string_view resource)
 		});
 }
 
+// Put inside engine struct
+static std::atomic_bool sRunning = true;
+
 void engine_main()
 {
+	FoxEngine::LogInfo("Welcome to FoxEngine");
+
 	FoxEngine::Window window = FoxEngine::WindowCreateInfo{};
 
 	// Create an engine structure to contain this
 
-	std::atomic_bool running = true;
+	glfwSetWindowCloseCallback(window.Handle(), [](GLFWwindow*)
+		{
+			sRunning = false;
+		});
 
 	std::thread thread = std::thread([&]()
 		{
@@ -144,7 +155,7 @@ void engine_main()
 			glEnable(GL_DEPTH_TEST);
 			glClearColor(0.7f, 0.8f, 0.9f, 1.0f);
 
-			while (running)
+			while (sRunning)
 			{
 				// Use callbacks for this, no neeed to do this every frame,
 				// later on this will trigger buffer and texture reallocation
@@ -174,13 +185,9 @@ void engine_main()
 			glfwPostEmptyEvent();
 		});
 
-	while (running)
-	{
-		glfwWaitEvents();
-
-		// setup close callback to do this
-		if (glfwWindowShouldClose(window.Handle())) running = false;
-	}	
+	// This loop can also be used to refresh object pools in the resource loader
+	while (sRunning)
+		FoxEngine::Window::WaitEvents();
 
 	thread.join();
 }

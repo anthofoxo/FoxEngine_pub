@@ -69,8 +69,8 @@ feProject "game"
 		--vendor_loc .. "assimp_config_h_fix",
 		--vendor_loc .. "assimp/include",
 		vendor_loc .. "glm",
-		--vendor_loc .. "entt/src",
-		--vendor_loc .. "spdlog/include",
+		vendor_loc .. "entt/src",
+		vendor_loc .. "spdlog/include",
 		--vendor_loc .. "harfbuzz/src",
 		--vendor_loc .. "msdfgen",
 		--vendor_loc .. "freetype/include",
@@ -87,7 +87,6 @@ feProject "game"
 
 		--"zlib",
 		--"imgui"
-		--"assimp",
 		--"harfbuzz",
 		--"msdfgen",
 		--"freetype",
