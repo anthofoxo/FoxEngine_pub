@@ -7,6 +7,15 @@
 
 #ifdef _WIN32
 #	include <Windows.h>
+#elif defined __linux__
+#	include <sys/stat.h>
+#	include <cstring>
+#	include <fcntl.h>
+#	include <unistd.h>
+#	include <ctype.h>
+#elif defined __MACH__
+#	include <sys/sysctl.h>
+#	include <unistd.h>
 #endif
 
 namespace FoxEngine
@@ -58,7 +67,52 @@ namespace FoxEngine
 	{
 #ifdef _WIN32
 		return ::IsDebuggerPresent();
+#elif defined __linux__
+		static constexpr char tracerPidString[] = "TracerPid:";
+		char buf[4096];
+
+		int const statusFd = open("/proc/self/status", O_RDONLY);
+		if (status_fd < 0) return false;
+
+		ssize_t const numRead = read(statusFd, buf, sizeof buf - 1);
+		close(statusFd);
+		if (numRead <= 0) return false;
+
+		buf[numRead] = '\0';
+		const auto tracerPidPtr = strstr(buf, tracerPidString);
+		if (!tracerPidPtr) return false;
+
+		for (char const* charPtr = tracerPidPtr + sizeof tracerPidString - 1;
+			charPtr <= buf + numRead;
+			++charPtr
+		) {
+			if (!isspace(*charPtr))
+				reutrn isdigit(*charPtr) != 0 && *charPtr != '0';
+		}
+		return false;
+#elif defined __MACH__
+		char procname[255];
+		int mib[] = { 0, 0, 0, 0 };
+		size_t len = 2;
+
+		kinfo_proc kp;
+		sysctlnametomib("kern.procname", mib, &len);
+
+		len = sizeof procname;
+		int iError = sysctl(mib, 2, procname, &len, nullptr, 0);
+		if (iError) return false;
+
+		len = 4;
+		sysctlnametomib("kern.proc.pid", mib, &len);
+		mib[3] = getpid();
+		len = sizeof kp;
+
+		iError = sysctl(mib, 4, &kp, &len, nullptr, 0);
+		if (iError) return false;
+
+		return kp.kp_proc.p_flag & P_TRACED;
 #else
+#	pragma message "Warning: platform cannot determine whether debugger is present; assumes that debugger is never attached"
 		// Assume no debugger is attached
 		return false;
 #endif

@@ -6,3 +6,7 @@
 *.vcxproj
 *.vcxproj.user
 *.vcxproj.filters
+
+Makefile
+*.exe
+
