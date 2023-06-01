@@ -208,7 +208,7 @@ namespace FoxEngine
 					.debugName = "Default texture (white)"
 				});
 
-			char vals[]{255,255,255,255};
+			unsigned char vals[]{(unsigned char)255,(unsigned char)255,(unsigned char)255,(unsigned char)255};
 
 			defaultTex->Upload(
 				{
@@ -553,6 +553,8 @@ int main(int argc, char* argv[])
 
 		FoxEngine::LogCritical(e.what());
 		// MSVC only
+#ifdef _MSC_VER
 		__debugbreak();
+#endif
 	}
 }

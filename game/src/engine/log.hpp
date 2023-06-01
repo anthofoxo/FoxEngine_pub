@@ -58,7 +58,7 @@ namespace FoxEngine
 	template<class... Args>
 	void LogError(std::string_view fmt, Args&&... args)
 	{
-		LogError(FormatArgs<Args>(fmt, std::forward<Args>(args)...));
+		LogError(FormatArgs<Args...>(fmt, std::forward<Args>(args)...));
 	}
 
 	template<class... Args>
