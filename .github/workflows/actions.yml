@@ -13,6 +13,12 @@ jobs:
       - windows-latest
     steps:
       - uses: actions/checkout@v3
+        with:
+          submodules: true
+      - name: update submodules
+        run: |
+          git submodule update --init --recursive
+          git submodule update --recursive --remote
       - uses: abel0b/setup-premake@v2.2
         with:
           version: "5.0.0-beta2"
@@ -22,13 +28,19 @@ jobs:
       - name: configure
         run: premake5 vs2022
       - name: build
-        run: msbuild game.sln /t:build /p:Configuration=Release;Platform=Win32
+        run: msbuild game.sln /t:build /p:Configuration=Release /p:Platform=Win32
   build-linux:
     name: Build (Linux, GNU Make)
     runs-on:
       - ubuntu-latest
     steps:
       - uses: actions/checkout@v3
+        with:
+          submodules: true
+      - name: update submodules
+        run: |
+          git submodule update --init --recursive
+          git submodule update --recursive --remote
       - uses: abel0b/setup-premake@v2.2
         with:
           version: "5.0.0-beta2"
@@ -42,11 +54,19 @@ jobs:
       - macos-latest
     steps:
       - uses: actions/checkout@v3
+        with:
+          submodules: true
+      - name: update submodules
+        run: |
+          git submodule update --init --recursive
+          git submodule update --recursive --remote
       - uses: abel0b/setup-premake@v2.2
         with:
           version: "5.0.0-beta2"
       - name: configure
         run: premake5 xcode4
       - name: build
-        run: xcodebuild -workspace game.xcworkspace -scheme macOS -configuration Release build
+        run: |
+          xcodebuild -workspace game.xcworkspace -list
+          xcodebuild -workspace game.xcworkspace -scheme macOS -configuration Release build
 
