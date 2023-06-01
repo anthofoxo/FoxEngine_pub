@@ -3,6 +3,7 @@
 #include "engine/shader.hpp"
 #include "engine/mesh.hpp"
 #include "engine/log.hpp"
+#include "engine/experimental/PolyContainer.h"
 
 #include "vendor/stb_image.h"
 
@@ -195,7 +196,6 @@ namespace FoxEngine
 			ImGui_ImplGlfw_InitForOpenGL(mWindow.Handle(), true);
 			ImGui_ImplOpenGL3_Init("#version 330 core");
 
-			
 			FoxEngine::Window::LoadGLFunctions(); // may fail
 			FoxEngine::Window::SwapInterval(-1);
 
@@ -522,26 +522,6 @@ namespace FoxEngine
 		entt::dispatcher mDispatcher{};
 	};
 }
-
-#include <typeinfo>
-#include <type_traits>
-
-struct Base
-{
-	Base() { FoxEngine::LogInfo(__FUNCTION__); }
-	virtual void func() { FoxEngine::LogInfo("print details"); }
-	virtual ~Base() { FoxEngine::LogInfo(__FUNCTION__); }
-};
-
-struct Derived : public Base
-{
-	int value = 50;
-	Derived() { FoxEngine::LogInfo(__FUNCTION__); }
-	void func() override { FoxEngine::LogInfo("implmentation detail {}", value); }
-	virtual ~Derived() { FoxEngine::LogInfo(__FUNCTION__); }
-
-	Derived& operator=(const Derived&) = delete;
-};
 
 int main(int argc, char* argv[])
 {
