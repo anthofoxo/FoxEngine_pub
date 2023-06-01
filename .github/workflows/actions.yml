@@ -28,7 +28,7 @@ jobs:
       - name: configure
         run: premake5 vs2022
       - name: build
-        run: msbuild game.sln /t:build /p:Configuration=Release /p:Platform=Win32
+        run: msbuild game.sln /t:build /p:Configuration=release
   build-linux:
     name: Build (Linux, GNU Make)
     runs-on:
@@ -41,6 +41,9 @@ jobs:
         run: |
           git submodule update --init --recursive
           git submodule update --recursive --remote
+      - name: uses: awalsh128/cache-apt-pkgs-action@latest
+        with:
+          packages: libxcursor-dev
       - uses: abel0b/setup-premake@v2.2
         with:
           version: "5.0.0-beta2"
@@ -67,6 +70,5 @@ jobs:
         run: premake5 xcode4
       - name: build
         run: |
-          xcodebuild -workspace game.xcworkspace -list
-          xcodebuild -workspace game.xcworkspace -scheme macOS -configuration Release build
+          xcodebuild -workspace game.xcworkspace -configuration release build
 
