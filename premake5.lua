@@ -31,8 +31,6 @@ workspace "game"
         defines { "WIN32_LEAN_AND_MEAN", "NOMINMAX" }
     filter { "system:windows", "configurations:debug or game_debug" }
         defines "_ITERATOR_DEBUG_LEVEL=1"
-	filter "system:linux"
-		defines { "_GNU_SOURCE", "_POSIX_C_SOURCE=1999309L" }
     filter {}
 
 function feProject(name)
@@ -171,7 +169,7 @@ feProject "glfw"
 			"%{prj.location}/src/xkb_unicode.c",
 			"%{prj.location}/src/xkb_unicode.h"
 		}
-		defines "_GLFW_X11"
+		defines { "_GLFW_X11", "_GNU_SOURCE", "_POSIX_C_SOURCE=1999309L" }
 	filter "system:macosx"
 		files
 		{
