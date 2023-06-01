@@ -41,7 +41,7 @@ jobs:
         run: |
           git submodule update --init --recursive
           git submodule update --recursive --remote
-      - name: uses: awalsh128/cache-apt-pkgs-action@latest
+      - uses: awalsh128/cache-apt-pkgs-action@latest
         with:
           packages: libxcursor-dev
       - uses: abel0b/setup-premake@v2.2
