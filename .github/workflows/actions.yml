@@ -28,7 +28,7 @@ jobs:
       - name: configure
         run: premake5 vs2022
       - name: build
-        run: msbuild game.sln /t:build /p:Configuration=release
+        run: msbuild game.sln /t:build /p:Configuration=release /m:4
   build-linux:
     name: Build (Linux, GNU Make)
     runs-on:
@@ -43,7 +43,7 @@ jobs:
           git submodule update --recursive --remote
       - uses: awalsh128/cache-apt-pkgs-action@latest
         with:
-          packages: libxcursor-dev libxrandr-dev libxinerama-dev
+          packages: xorg-dev
       - uses: abel0b/setup-premake@v2.2
         with:
           version: "5.0.0-beta2"
