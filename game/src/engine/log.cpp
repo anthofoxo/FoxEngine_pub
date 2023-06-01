@@ -112,6 +112,7 @@ namespace FoxEngine
 
 		return kp.kp_proc.p_flag & P_TRACED;
 #else
+#	pragma message "Warning: platform cannot determine whether debugger is present; assumes that debugger is never attached"
 		// Assume no debugger is attached
 		return false;
 #endif
