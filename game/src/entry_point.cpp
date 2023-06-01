@@ -405,10 +405,7 @@ namespace FoxEngine
 									opaqueShader->UniformMat4f("uModel", glm::value_ptr(transform.transform.ToMatrix()));
 									meshFilter.mesh->Draw();
 								}
-
-
 							}
-
 
 							ImGui::Image((ImTextureID)(intptr_t)fboTex, { (float)vpw, (float)vph }, { 0, 1 }, { 1, 0 });
 						}
@@ -436,13 +433,9 @@ namespace FoxEngine
 					static double timer = 0.0;
 					timer += deltaTime;
 
-
-
 					if (timer > 1.0 / 8.0)
 					{
 						timer = 0.0;
-
-
 
 						// Rotate foxo
 						Transform& t = foxEntity.get<TransformComponent>().transform;
@@ -478,8 +471,6 @@ namespace FoxEngine
 
 					}
 				}
-
-				
 
 				glBindFramebuffer(GL_FRAMEBUFFER, 0);
 				glBindTexture(GL_TEXTURE_2D, 0);
@@ -522,9 +513,7 @@ namespace FoxEngine
 		void OnClose(const WindowCloseEvent& e)
 		{
 			mRunning = false;
-		}
-
-		
+		}	
 	public:
 		bool mRunning = true;
 		FoxEngine::Window mWindow;
@@ -540,21 +529,5 @@ int main(int argc, char* argv[])
 	stbi_set_flip_vertically_on_load(true);
 
 	FoxEngine::Engine engine;
-
-	try
-	{
-		engine.Start();
-	}
-	catch (std::exception& e)
-	{
-
-		
-
-
-		FoxEngine::LogCritical(e.what());
-		// MSVC only
-#ifdef _MSC_VER
-		__debugbreak();
-#endif
-	}
+	engine.Start();
 }

@@ -1,6 +1,13 @@
 #pragma once
 
+#include "vendor/debug-trap.h"
+
+#include <tinyfiledialogs.h>
 #include <spdlog/spdlog.h>
+
+#ifdef _WIN32
+#	include <Windows.h>
+#endif
 
 namespace FoxEngine
 {
@@ -47,9 +54,29 @@ namespace FoxEngine
 		spdlog::error(str);
 	}
 
+	static bool IsDebuggerAttached()
+	{
+#ifdef _WIN32
+		return ::IsDebuggerPresent();
+#else
+		// Assume no debugger is attached
+		return false;
+#endif
+	}
+
 	void LogCritical(std::string_view str)
 	{
-		// put a breakpoint here
 		spdlog::critical(str);
+		
+		if (IsDebuggerAttached())
+		{
+			psnip_trap();
+			return;
+		}
+
+		const int response = tinyfd_messageBox("FoxEngine critical error! Is debugger attached?", str.data(), "yesno", "error", 0);
+		
+		if(response == 1)
+			psnip_trap();
 	}
 }

@@ -69,6 +69,7 @@ feProject "game"
 		--vendor_loc .. "assimp_config_h_fix",
 		--vendor_loc .. "assimp/include",
 		vendor_loc .. "glm",
+		vendor_loc .. "tinyfd",
 		vendor_loc .. "entt/src",
 		vendor_loc .. "spdlog/include",
 		--vendor_loc .. "harfbuzz/src",
@@ -84,7 +85,7 @@ feProject "game"
 		"glad2",
 		
 		"assimp",
-
+		"tinyfd",
 		--"zlib",
 		"imgui"
 		--"harfbuzz",
@@ -189,6 +190,9 @@ feProject "glad2"
     language "C"
     files "%{prj.location}/src/gl.c"
     includedirs "%{prj.location}/include"
+feProject "tinyfd"
+    language "C"
+    files "%{prj.location}/tinyfiledialogs.c"
 --feProject "zlib"
 --    language "C"
 --    files
