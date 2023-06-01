@@ -19,7 +19,7 @@ jobs:
       - uses: microsoft/setup-msbuild@v1.1
         with:
           msbuild-architecture: x64
-      - name: configure:
+      - name: configure
         run: premake5 vs2022
       - name: build
         run: msbuild game.sln /t:build /p:Configuration=Release;Platform=Win32
