@@ -43,7 +43,7 @@ jobs:
           git submodule update --recursive --remote
       - uses: awalsh128/cache-apt-pkgs-action@latest
         with:
-          packages: libxcursor-dev
+          packages: libxcursor-dev libxrandr-dev libxinerama-dev
       - uses: abel0b/setup-premake@v2.2
         with:
           version: "5.0.0-beta2"
@@ -70,5 +70,5 @@ jobs:
         run: premake5 xcode4
       - name: build
         run: |
-          xcodebuild -workspace game.xcworkspace -configuration release build
+          xcodebuild -workspace game.xcworkspace -configuration release build -scheme game
 
