@@ -14,7 +14,6 @@
 #	include <unistd.h>
 #	include <ctype.h>
 #elif defined __MACH__
-#	include <stdio.h>
 #	include <sys/sysctl.h>
 #	include <unistd.h>
 #endif
