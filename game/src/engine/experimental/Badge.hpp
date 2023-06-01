@@ -13,7 +13,7 @@ namespace FoxEngine::Experimental
 		Deleter(const T& t) : value(t) {}
 		Deleter(T&& t) : value(std::move(t)) {}
 
-		operator T&() { return value; }
+		operator T& () { return value; }
 
 		~Deleter() { Action{}(value); }
 

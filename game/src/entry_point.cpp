@@ -523,6 +523,26 @@ namespace FoxEngine
 	};
 }
 
+#include <typeinfo>
+#include <type_traits>
+
+struct Base
+{
+	Base() { FoxEngine::LogInfo(__FUNCTION__); }
+	virtual void func() { FoxEngine::LogInfo("print details"); }
+	virtual ~Base() { FoxEngine::LogInfo(__FUNCTION__); }
+};
+
+struct Derived : public Base
+{
+	int value = 50;
+	Derived() { FoxEngine::LogInfo(__FUNCTION__); }
+	void func() override { FoxEngine::LogInfo("implmentation detail {}", value); }
+	virtual ~Derived() { FoxEngine::LogInfo(__FUNCTION__); }
+
+	Derived& operator=(const Derived&) = delete;
+};
+
 int main(int argc, char* argv[])
 {
 	FoxEngine::LogInfo("Welcome to FoxEngine");
