@@ -36,6 +36,8 @@
 #include "backends/imgui_impl_opengl3.h"
 #include "backends/imgui_impl_glfw.h"
 
+#include "misc/cpp/imgui_stdlib.h"
+
 // Should we use YAML or JSON for configs
 
 // Guidelines for the order of includes should be made
@@ -242,7 +244,7 @@ namespace FoxEngine
 				MeshFilterComponent& meshFilter = entity.emplace<MeshFilterComponent>();
 				meshFilter.mesh = load_mesh("fox.obj");
 				transform.name = "foxo";
-				transform.tag = "icon_only";
+				transform.tag = "__icon";
 				transform.transform.translation.z = -4;
 
 				transform.transform.orientation = glm::rotate(transform.transform.orientation, glm::radians(180.f), glm::vec3(1, 0, 0));
@@ -298,6 +300,8 @@ namespace FoxEngine
 
 			bool showDemoWindow = false;
 			bool showViewport = true;
+			bool showHierarchy = true;
+			bool showProperties = true;
 
 			while (mRunning)
 			{
@@ -326,6 +330,9 @@ namespace FoxEngine
 					if (ImGui::BeginMenu("View"))
 					{
 						ImGui::MenuItem("Viewport", nullptr, &showViewport);
+						ImGui::MenuItem("Hierarchy", nullptr, &showHierarchy);
+						ImGui::MenuItem("Properties", nullptr, &showProperties);
+						ImGui::Separator();
 						ImGui::MenuItem("ImGui Demo Window", nullptr, &showDemoWindow);
 
 						ImGui::EndMenu();
@@ -400,7 +407,7 @@ namespace FoxEngine
 								{
 									auto [transform, meshFilter] = view.get(entity);
 
-									if (transform.tag == "icon_only") continue;
+									if (transform.tag == "__icon") continue;
 
 									opaqueShader->UniformMat4f("uModel", glm::value_ptr(transform.transform.ToMatrix()));
 									meshFilter.mesh->Draw();
@@ -417,8 +424,102 @@ namespace FoxEngine
 					ImGui::PopStyleVar();
 				}
 
-				
+				static entt::entity selected = entt::null;
 
+				if (showHierarchy)
+				{
+					if (ImGui::Begin("Hierarchy", &showHierarchy))
+					{
+						auto view = mRegistry.view<TransformComponent>();
+
+						for (auto entity : view)
+						{
+							auto [transform] = view.get(entity);
+							 
+							ImGuiTreeNodeFlags flags = ImGuiTreeNodeFlags_Leaf | ImGuiTreeNodeFlags_SpanAvailWidth;
+
+							if (entity == selected) flags |= ImGuiTreeNodeFlags_Selected;
+
+							ImGui::PushID((int)entity);
+
+							bool expanded = ImGui::TreeNodeEx(transform.name.c_str(), flags);
+
+
+							if (ImGui::IsItemClicked())
+								selected = entity;
+
+							if (expanded)
+							{
+								ImGui::TreePop();
+							}
+
+							ImGui::PopID();
+						}
+					}
+					ImGui::End();
+				}
+
+				if (showProperties)
+				{
+					if (ImGui::Begin("Properties", &showProperties))
+					{
+						if (selected != entt::null)
+						{
+							entt::handle handle = { mRegistry, selected };
+							TransformComponent& transform = handle.get<TransformComponent>();
+				
+							ImGui::InputText("Name", &transform.name);
+							ImGui::InputText("Tag", &transform.tag);
+							ImGui::Separator();
+							ImGui::DragFloat3("Translation", glm::value_ptr(transform.transform.translation));
+
+							{
+								glm::vec3 oldEuler = glm::degrees(glm::eulerAngles(transform.transform.orientation));
+								glm::vec3 euler = oldEuler;
+								bool changed = ImGui::DragFloat3("Orientation", glm::value_ptr(euler));
+								if (changed)
+								{
+									glm::vec3 delta = glm::radians(euler - oldEuler);
+									transform.transform.orientation = glm::rotate(transform.transform.orientation, delta.x, glm::vec3(1, 0, 0));
+									transform.transform.orientation = glm::rotate(transform.transform.orientation, delta.y, glm::vec3(0, 1, 0));
+									transform.transform.orientation = glm::rotate(transform.transform.orientation, delta.z, glm::vec3(0, 0, 1));
+								}
+							}
+
+							ImGui::DragFloat3("Scale", glm::value_ptr(transform.transform.scale));
+							if (ImGui::Button("Reset transform"))
+								transform.transform = Transform{};
+						}
+						else
+						{
+							ImGui::TextUnformatted("No entity selected");
+						}
+					}
+					ImGui::End();
+				}
+
+				{
+					if(ImGui::Begin("GPU Debug info"))
+					{
+						ImGui::LabelText("Renderer", "%s", glGetString(GL_RENDERER));
+						ImGui::LabelText("Vendor", "%s", glGetString(GL_VENDOR));
+						ImGui::LabelText("Version", "%s", glGetString(GL_VERSION));
+
+						if (ImGui::CollapsingHeader("Supported extensions"))
+						{
+							int numExts;
+							glGetIntegerv(GL_NUM_EXTENSIONS, &numExts);
+
+							for (int i = 0; i < numExts; ++i)
+							{
+								ImGui::TextUnformatted((char*)glGetStringi(GL_EXTENSIONS, i));
+							}
+						}
+						
+					}
+					ImGui::End();
+				}
+				
 				// Use callbacks for this, no neeed to do this every frame,
 				// later on this will trigger buffer and texture reallocation
 				int w, h;
