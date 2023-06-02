@@ -72,7 +72,7 @@ namespace FoxEngine
 		char buf[4096];
 
 		int const statusFd = open("/proc/self/status", O_RDONLY);
-		if (status_fd < 0) return false;
+		if (statusFd < 0) return false;
 
 		ssize_t const numRead = read(statusFd, buf, sizeof buf - 1);
 		close(statusFd);
@@ -87,7 +87,7 @@ namespace FoxEngine
 			++charPtr
 		) {
 			if (!isspace(*charPtr))
-				reutrn isdigit(*charPtr) != 0 && *charPtr != '0';
+				return isdigit(*charPtr) != 0 && *charPtr != '0';
 		}
 		return false;
 #elif defined __MACH__
