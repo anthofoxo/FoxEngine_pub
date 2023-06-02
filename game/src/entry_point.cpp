@@ -147,6 +147,13 @@ struct TransformComponent final
 struct MeshFilterComponent final
 {
 	std::shared_ptr<FoxEngine::Mesh> mesh;
+	std::string resource;
+};
+
+struct MeshRendererComponent final
+{
+	std::shared_ptr<FoxEngine::Texture> texture;
+	std::string resource;
 };
 
 namespace FoxEngine
@@ -203,7 +210,7 @@ namespace FoxEngine
 
 			mDispatcher.sink<WindowCloseEvent>().connect<&Engine::OnClose>(this);
 
-			std::unique_ptr<FoxEngine::Texture> defaultTex = FoxEngine::Texture::Create(
+			std::shared_ptr<FoxEngine::Texture> defaultTex = FoxEngine::Texture::Create(
 				{
 					.width = 1,
 					.height = 1,
@@ -219,8 +226,6 @@ namespace FoxEngine
 					.pixels = vals
 				});
 
-			std::unique_ptr<FoxEngine::Texture> foxTexture = FoxEngine::Texture::Create("fox.png");
-
 			std::unique_ptr<FoxEngine::Shader> opaqueShader = FoxEngine::Shader::Create(
 				{
 					.filename = "opaque.glsl",
@@ -231,7 +236,13 @@ namespace FoxEngine
 				entt::handle entity = { mRegistry, mRegistry.create() };
 				TransformComponent& transform = entity.emplace<TransformComponent>();
 				MeshFilterComponent& meshFilter = entity.emplace<MeshFilterComponent>();
-				meshFilter.mesh = load_mesh("dragon.obj");
+				MeshRendererComponent& meshRenderer = entity.emplace<MeshRendererComponent>();
+				meshFilter.resource = "dragon.obj";
+				meshFilter.mesh = load_mesh(meshFilter.resource);
+
+				meshRenderer.resource = "#";
+				meshRenderer.texture = defaultTex;
+
 				transform.name = "dergon";
 				transform.transform.translation.z = -10;
 			}
@@ -242,10 +253,15 @@ namespace FoxEngine
 				entt::handle entity = { mRegistry, mRegistry.create() };
 				TransformComponent& transform = entity.emplace<TransformComponent>();
 				MeshFilterComponent& meshFilter = entity.emplace<MeshFilterComponent>();
-				meshFilter.mesh = load_mesh("fox.obj");
+				meshFilter.resource = "fox.obj";
+				meshFilter.mesh = load_mesh(meshFilter.resource);
 				transform.name = "foxo";
 				transform.tag = "__icon";
 				transform.transform.translation.z = -4;
+
+				MeshRendererComponent& meshRenderer = entity.emplace<MeshRendererComponent>();
+				meshRenderer.resource = "fox.png";
+				meshRenderer.texture = FoxEngine::Texture::Create(meshRenderer.resource);
 
 				transform.transform.orientation = glm::rotate(transform.transform.orientation, glm::radians(180.f), glm::vec3(1, 0, 0));
 
@@ -401,17 +417,16 @@ namespace FoxEngine
 								opaqueShader->UniformMat4f("uProjection", glm::value_ptr(projection));
 								opaqueShader->UniformMat4f("uView", glm::value_ptr(glm::identity<glm::mat4>()));
 
-								auto view = mRegistry.view<TransformComponent, MeshFilterComponent>();
-
-								defaultTex->Bind();
+								auto view = mRegistry.view<TransformComponent, MeshFilterComponent, MeshRendererComponent>();
 
 								for (auto entity : view)
 								{
-									auto [transform, meshFilter] = view.get(entity);
+									auto [transform, meshFilter, meshRenderer] = view.get(entity);
 
 									if (transform.tag == "__icon") continue;
 
 									opaqueShader->UniformMat4f("uModel", glm::value_ptr(transform.transform.ToMatrix()));
+									meshRenderer.texture->Bind();
 									meshFilter.mesh->Draw();
 								}
 							}
@@ -490,7 +505,7 @@ namespace FoxEngine
 								}
 
 								ImGui::DragFloat3("Scale", glm::value_ptr(transform.transform.scale));
-								if (ImGui::Button("Reset transform"))
+								if (ImGui::Button("Reset"))
 									transform.transform = Transform{};
 							}
 
@@ -498,7 +513,19 @@ namespace FoxEngine
 							{
 								if (ImGui::CollapsingHeader("Mesh filter"))
 								{
-									ImGui::TextUnformatted("(WIP)");
+									ImGui::InputText("Mesh", &component->resource);
+									if(ImGui::Button("Load"))
+										component->mesh = load_mesh(component->resource);
+								}
+							}
+
+							if (auto* component = handle.try_get<MeshRendererComponent>())
+							{
+								if (ImGui::CollapsingHeader("Mesh renderer"))
+								{
+									ImGui::InputText("Texture", &component->resource);
+									if (ImGui::Button("Load"))
+										component->texture = FoxEngine::Texture::Create(component->resource);
 								}
 							}
 							
@@ -570,9 +597,19 @@ namespace FoxEngine
 						opaqueShader->Bind();
 						opaqueShader->UniformMat4f("uProjection", glm::value_ptr(projection));
 						opaqueShader->UniformMat4f("uView", glm::value_ptr(glm::identity<glm::mat4>()));
-						opaqueShader->UniformMat4f("uModel", glm::value_ptr(t.ToMatrix()));
-						foxTexture->Bind(0);
-						foxEntity.get<MeshFilterComponent>().mesh->Draw();
+
+						auto view = mRegistry.view<TransformComponent, MeshFilterComponent, MeshRendererComponent>();
+
+						for (auto entity : view)
+						{
+							auto [transform, meshFilter, meshRenderer] = view.get(entity);
+
+							if (transform.tag != "__icon") continue;
+
+							opaqueShader->UniformMat4f("uModel", glm::value_ptr(transform.transform.ToMatrix()));
+							meshRenderer.texture->Bind();
+							meshFilter.mesh->Draw();
+						}
 
 						glBindTexture(GL_TEXTURE_2D, iconTex);
 						glGetTexImage(GL_TEXTURE_2D, 0, GL_RGBA, GL_UNSIGNED_BYTE, pixels.get());
