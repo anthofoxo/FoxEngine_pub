@@ -302,6 +302,7 @@ namespace FoxEngine
 			bool showViewport = true;
 			bool showHierarchy = true;
 			bool showProperties = true;
+			bool showGpuInfo = false;
 
 			while (mRunning)
 			{
@@ -332,6 +333,7 @@ namespace FoxEngine
 						ImGui::MenuItem("Viewport", nullptr, &showViewport);
 						ImGui::MenuItem("Hierarchy", nullptr, &showHierarchy);
 						ImGui::MenuItem("Properties", nullptr, &showProperties);
+						ImGui::MenuItem("GPU Info", nullptr, &showGpuInfo);		
 						ImGui::Separator();
 						ImGui::MenuItem("ImGui Demo Window", nullptr, &showDemoWindow);
 
@@ -469,11 +471,13 @@ namespace FoxEngine
 							TransformComponent& transform = handle.get<TransformComponent>();
 				
 							ImGui::InputText("Name", &transform.name);
-							ImGui::InputText("Tag", &transform.tag);
-							ImGui::Separator();
-							ImGui::DragFloat3("Translation", glm::value_ptr(transform.transform.translation));
 
+							if (ImGui::CollapsingHeader("Transform"))
 							{
+								ImGui::InputText("Tag", &transform.tag);
+								ImGui::Separator();
+								ImGui::DragFloat3("Translation", glm::value_ptr(transform.transform.translation));
+								
 								glm::vec3 oldEuler = glm::degrees(glm::eulerAngles(transform.transform.orientation));
 								glm::vec3 euler = oldEuler;
 								bool changed = ImGui::DragFloat3("Orientation", glm::value_ptr(euler));
@@ -484,11 +488,20 @@ namespace FoxEngine
 									transform.transform.orientation = glm::rotate(transform.transform.orientation, delta.y, glm::vec3(0, 1, 0));
 									transform.transform.orientation = glm::rotate(transform.transform.orientation, delta.z, glm::vec3(0, 0, 1));
 								}
+
+								ImGui::DragFloat3("Scale", glm::value_ptr(transform.transform.scale));
+								if (ImGui::Button("Reset transform"))
+									transform.transform = Transform{};
 							}
 
-							ImGui::DragFloat3("Scale", glm::value_ptr(transform.transform.scale));
-							if (ImGui::Button("Reset transform"))
-								transform.transform = Transform{};
+							if (auto* component = handle.try_get<MeshFilterComponent>())
+							{
+								if (ImGui::CollapsingHeader("Mesh filter"))
+								{
+									ImGui::TextUnformatted("(WIP)");
+								}
+							}
+							
 						}
 						else
 						{
@@ -498,6 +511,7 @@ namespace FoxEngine
 					ImGui::End();
 				}
 
+				if (showGpuInfo)
 				{
 					if(ImGui::Begin("GPU Debug info"))
 					{
