@@ -3,6 +3,7 @@ input(vec3, inNormal, 1);
 input(vec2, inTexCoord, 2);
 
 output(vec4, outColor, 0);
+output(vec4, outBlack, 1);
 
 varying(vec2, vTexCoord);
 varying(vec3, vNormal);
@@ -38,6 +39,8 @@ void main(void)
 
 	outColor.rgb *= max(diffuse, 0.1);
 	outColor.rgb += pow(max(specular, 0.0), 10.0);
+
+	outBlack = vec4(0.0, 0.0, 0.0, 1.0);
 }
 
 #endif

@@ -27,7 +27,7 @@ float hash12(vec2 p)
 
 vec4 getSample(vec2 coord)
 {
-    return texture(uChannel0, coord + uTime * 0.1);
+    return texture(uChannel0, coord);
 }
 
 void main(void)

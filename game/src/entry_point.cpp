@@ -226,11 +226,35 @@ namespace FoxEngine
 					.pixels = vals
 				});
 
+			FoxEngine::Mesh::Vertex vertices[] = {
+				{{ -1, 1, 0 },{ 0, 0, -1 },{ 0, 1 }},
+				{{ -1, -1, 0 },{ 0, 0, -1 },{ 0, 0 }},
+				{{ 1, 1, 0 },{ 0, 0, -1 },{ 1, 1 }},
+				{{ 1, -1, 0 },{ 0, 0, -1 },{ 1, 0 }}
+			};
+			FoxEngine::Mesh::Index indices[] = {
+				0,1,2, 2,1,3
+			};
+
+			std::unique_ptr<FoxEngine::Mesh> fsQuad = FoxEngine::Mesh::Create(
+				{
+					.vertices = vertices,
+					.indices = indices
+				});
+
 			std::unique_ptr<FoxEngine::Shader> opaqueShader = FoxEngine::Shader::Create(
 				{
 					.filename = "opaque.glsl",
 					.debugName = "opaque.glsl"
 				});
+
+			std::unique_ptr<FoxEngine::Shader> radialBlurShader = FoxEngine::Shader::Create(
+				{
+					.filename = "radial_blur.glsl",
+					.debugName = "radial_blur.glsl"
+				});
+
+			Transform cameraTransform;
 
 			{
 				entt::handle entity = { mRegistry, mRegistry.create() };
@@ -281,6 +305,7 @@ namespace FoxEngine
 
 			unsigned int fbo = 0;
 			unsigned int fboTex = 0;
+			unsigned int fboTexBlack = 0;
 			unsigned int fboDep = 0;
 			int vpw = 0, vph = 0;
 
@@ -329,6 +354,68 @@ namespace FoxEngine
 				deltaTime = currentTime - lastTime;
 				lastTime = currentTime;
 
+				bool cameraEdit = glfwGetMouseButton(mWindow.Handle(), 1) != GLFW_RELEASE;
+
+				if (cameraEdit)
+				{
+					glfwSetInputMode(mWindow.Handle(), GLFW_CURSOR, GLFW_CURSOR_DISABLED);
+					ImGui::GetIO().ConfigFlags |= ImGuiConfigFlags_NoMouse;
+					ImGui::GetIO().ConfigFlags &= ~ImGuiConfigFlags_NavEnableKeyboard;
+				}
+				else
+				{
+					glfwSetInputMode(mWindow.Handle(), GLFW_CURSOR, GLFW_CURSOR_NORMAL);
+					ImGui::GetIO().ConfigFlags &= ~ImGuiConfigFlags_NoMouse;
+					ImGui::GetIO().ConfigFlags |= ImGuiConfigFlags_NavEnableKeyboard;
+				}
+
+				static glm::vec2 last_mouse_pos{};
+
+				double xpos, ypos;
+				glfwGetCursorPos(mWindow.Handle(), &xpos, &ypos);
+
+				glm::vec2 mouse_pos(xpos, ypos);
+
+				glm::vec2 mouse_delta = mouse_pos - last_mouse_pos;
+
+				last_mouse_pos = mouse_pos;
+
+				if (cameraEdit)
+				{
+					
+
+					if (glm::length2(mouse_delta) > 1)
+					{
+						glm::vec4 axis = cameraTransform.ToInverseMatrix() * glm::vec4(0, 1, 0, 0);
+
+						cameraTransform.orientation = glm::rotate(cameraTransform.orientation, glm::radians(mouse_delta.x * -0.3f), glm::vec3(axis));
+						cameraTransform.orientation = glm::rotate(cameraTransform.orientation, glm::radians(mouse_delta.y * -0.3f), glm::vec3(1, 0, 0));
+					}
+
+					glm::vec3 direction{};
+
+					if (glfwGetKey(mWindow.Handle(), GLFW_KEY_A) != GLFW_RELEASE)
+						--direction.x;
+					if (glfwGetKey(mWindow.Handle(), GLFW_KEY_D) != GLFW_RELEASE)
+						++direction.x;
+					if (glfwGetKey(mWindow.Handle(), GLFW_KEY_W) != GLFW_RELEASE)
+						--direction.z;
+					if (glfwGetKey(mWindow.Handle(), GLFW_KEY_S) != GLFW_RELEASE)
+						++direction.z;
+					if (glfwGetKey(mWindow.Handle(), GLFW_KEY_LEFT_SHIFT) != GLFW_RELEASE)
+						--direction.y;
+					if (glfwGetKey(mWindow.Handle(), GLFW_KEY_SPACE) != GLFW_RELEASE)
+						++direction.y;
+
+					if (glm::length2(direction) > 0)
+					{
+						direction = glm::normalize(direction) * (float)deltaTime * 10.0f;
+
+						cameraTransform.FromMatrix(glm::translate(cameraTransform.ToMatrix(), direction));
+					}
+						
+				}
+
 				ImGui_ImplOpenGL3_NewFrame();
 				ImGui_ImplGlfw_NewFrame();
 				ImGui::NewFrame();
@@ -366,6 +453,8 @@ namespace FoxEngine
 				{
 					ImGui::PushStyleVar(ImGuiStyleVar_WindowPadding, { 0, 0 });
 
+					ImGui::SetNextWindowViewport(ImGui::GetMainViewport()->ID);
+
 					if (ImGui::Begin("Viewport", &showViewport))
 					{
 						ImVec2 size = ImGui::GetContentRegionAvail();
@@ -380,10 +469,20 @@ namespace FoxEngine
 
 								if (fbo) glDeleteFramebuffers(1, &fbo);
 								if (fboTex) glDeleteTextures(1, &fboTex);
+								if (fboTexBlack) glDeleteTextures(1, &fboTexBlack);
 								if (fboDep) glDeleteRenderbuffers(1, &fboDep);
 
 								glGenTextures(1, &fboTex);
 								glBindTexture(GL_TEXTURE_2D, fboTex);
+								glTexImage2D(GL_TEXTURE_2D, 0, GL_RGBA8, vpw, vph, 0, GL_RGBA, GL_UNSIGNED_BYTE, nullptr);
+								glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_WRAP_S, GL_CLAMP_TO_EDGE);
+								glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_WRAP_T, GL_CLAMP_TO_EDGE);
+								glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_WRAP_R, GL_CLAMP_TO_EDGE);
+								glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MIN_FILTER, GL_LINEAR);
+								glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MAG_FILTER, GL_NEAREST);
+
+								glGenTextures(1, &fboTexBlack);
+								glBindTexture(GL_TEXTURE_2D, fboTexBlack);
 								glTexImage2D(GL_TEXTURE_2D, 0, GL_RGBA8, vpw, vph, 0, GL_RGBA, GL_UNSIGNED_BYTE, nullptr);
 								glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_WRAP_S, GL_CLAMP_TO_EDGE);
 								glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_WRAP_T, GL_CLAMP_TO_EDGE);
@@ -398,7 +497,12 @@ namespace FoxEngine
 								glGenFramebuffers(1, &fbo);
 								glBindFramebuffer(GL_FRAMEBUFFER, fbo);
 								glFramebufferTexture2D(GL_FRAMEBUFFER, GL_COLOR_ATTACHMENT0, GL_TEXTURE_2D, fboTex, 0);
+								glFramebufferTexture2D(GL_FRAMEBUFFER, GL_COLOR_ATTACHMENT1, GL_TEXTURE_2D, fboTexBlack, 0);
 								glFramebufferRenderbuffer(GL_FRAMEBUFFER, GL_DEPTH_ATTACHMENT, GL_RENDERBUFFER, fboDep);
+
+								unsigned int vals[]{ GL_COLOR_ATTACHMENT0, GL_COLOR_ATTACHMENT1 };
+								glDrawBuffers(2, vals);
+
 							}
 
 							// Perform rendering
@@ -406,16 +510,16 @@ namespace FoxEngine
 								glBindFramebuffer(GL_FRAMEBUFFER, fbo);
 								glViewport(0, 0, vpw, vph);
 
-								glClearColor(0.7f, 0.8f, 0.9f, 1.0f);
+								glClearColor(0, 0, 0, 0);
 								glClear(GL_COLOR_BUFFER_BIT | GL_DEPTH_BUFFER_BIT);
 
 								// projection resize should also be bound to window resize operations
-								projection = glm::perspectiveFov(glm::radians(90.0f), (float)vpw, (float)vph, 0.1f, 100.0f);
+								projection = glm::perspectiveFov(glm::radians(90.0f), (float)vpw, (float)vph, 0.1f, 1000.0f);
 
 								// Uniforms will not stay forever, prefer uniform buffer blocks
 								opaqueShader->Bind();
 								opaqueShader->UniformMat4f("uProjection", glm::value_ptr(projection));
-								opaqueShader->UniformMat4f("uView", glm::value_ptr(glm::identity<glm::mat4>()));
+								opaqueShader->UniformMat4f("uView", glm::value_ptr(cameraTransform.ToInverseMatrix()));
 
 								auto view = mRegistry.view<TransformComponent, MeshFilterComponent, MeshRendererComponent>();
 
@@ -429,6 +533,29 @@ namespace FoxEngine
 									meshRenderer.texture->Bind();
 									meshFilter.mesh->Draw();
 								}
+
+								glEnable(GL_BLEND);
+								glBlendFunc(GL_ONE, GL_ONE);
+								glDisable(GL_DEPTH_TEST);
+								glDepthMask(GL_FALSE);
+
+								// do radial blur
+								radialBlurShader->Bind();
+								radialBlurShader->Uniform2f("uResolution", vpw, vph);
+								glBindTexture(GL_TEXTURE_2D, fboTexBlack);
+
+								unsigned int bufs[] = { GL_COLOR_ATTACHMENT0 };
+								glDrawBuffers(1, bufs);
+
+								// render meshg
+								fsQuad->Draw();
+
+								unsigned int bufs2[] = { GL_COLOR_ATTACHMENT0, GL_COLOR_ATTACHMENT1 };
+								glDrawBuffers(2, bufs2);
+									
+								glDisable(GL_BLEND);
+								glEnable(GL_DEPTH_TEST);
+								glDepthMask(GL_TRUE);
 							}
 
 							ImGui::Image((ImTextureID)(intptr_t)fboTex, { (float)vpw, (float)vph }, { 0, 1 }, { 1, 0 });
@@ -514,8 +641,11 @@ namespace FoxEngine
 								if (ImGui::CollapsingHeader("Mesh filter"))
 								{
 									ImGui::InputText("Mesh", &component->resource);
+
+									ImGui::PushID(component);
 									if(ImGui::Button("Load"))
 										component->mesh = load_mesh(component->resource);
+									ImGui::PopID();
 								}
 							}
 
@@ -524,8 +654,10 @@ namespace FoxEngine
 								if (ImGui::CollapsingHeader("Mesh renderer"))
 								{
 									ImGui::InputText("Texture", &component->resource);
+									ImGui::PushID(component);
 									if (ImGui::Button("Load"))
 										component->texture = FoxEngine::Texture::Create(component->resource);
+									ImGui::PopID();
 								}
 							}
 							
