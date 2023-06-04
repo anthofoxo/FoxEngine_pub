@@ -4,9 +4,15 @@ output(vec4, outColor, 0);
 varying(vec2, vUv);
 varying(vec3, vNormal);
 
+uniform vec2 uCenter;
 uniform vec2 uResolution;
-uniform float uTime;
+uniform float uStrength;
 uniform sampler2D uChannel0;
+
+uniform float iterations;
+uniform float useJitter;
+
+uniform float uTime;
 
 #ifdef FE_VERT
 
@@ -20,6 +26,8 @@ void main(void)
 
 float hash12(vec2 p)
 {
+	p += uTime;
+
 	vec3 p3  = fract(vec3(p.xyx) * .1031);
     p3 += dot(p3, p3.yzx + 33.33);
     return fract((p3.x + p3.y) * p3.z);
@@ -32,14 +40,15 @@ vec4 getSample(vec2 coord)
 
 void main(void)
 {
-	float strength = 1.0;
-    vec2 center = vec2(0.5, 0.5);
-    
-	vec2 toCenter = (center - vUv) * uResolution;
+	vec2 toCenter = (uCenter - vUv) * uResolution;
 
-    float jitter = hash12(gl_FragCoord.xy);
+    float jitter = 0.0;
+	
+	if(useJitter > 0.5)
+		jitter = hash12(gl_FragCoord.xy);
+	//float jitter = 0.0;
     
-    float iterations = 40.0;
+    
 
     vec3 color = vec3(0.0);
 	float total = 0.0;
@@ -50,7 +59,7 @@ void main(void)
 		float weight = 4.0 * (percent - percent * percent);
 		vec3 _sample = getSample(vUv + toCenter * percent / uResolution).rgb;
 
-		_sample.rgb *= strength;
+		_sample.rgb *= uStrength;
 		color += _sample.rgb * weight;
 		total += weight;
 	}
