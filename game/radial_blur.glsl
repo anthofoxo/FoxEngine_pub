@@ -9,8 +9,7 @@ uniform vec2 uResolution;
 uniform float uStrength;
 uniform sampler2D uChannel0;
 
-uniform float iterations;
-uniform float useJitter;
+uniform float uIterations;
 
 uniform float uTime;
 
@@ -42,20 +41,14 @@ void main(void)
 {
 	vec2 toCenter = (uCenter - vUv) * uResolution;
 
-    float jitter = 0.0;
-	
-	if(useJitter > 0.5)
-		jitter = hash12(gl_FragCoord.xy);
-	//float jitter = 0.0;
-    
-    
+    float jitter = hash12(gl_FragCoord.xy);   
 
     vec3 color = vec3(0.0);
 	float total = 0.0;
 
-	for (float t = 0.0; t < iterations; t++)
+	for (float t = 0.0; t < uIterations; t++)
 	{
-		float percent = (t + jitter) / iterations;
+		float percent = (t + jitter) / uIterations;
 		float weight = 4.0 * (percent - percent * percent);
 		vec3 _sample = getSample(vUv + toCenter * percent / uResolution).rgb;
 

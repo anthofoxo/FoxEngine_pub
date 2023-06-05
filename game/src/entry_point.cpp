@@ -452,18 +452,15 @@ namespace FoxEngine
 					ImGui::EndMainMenuBar();
 				}
 
+				static float sun_time = 0;
+
 				static int samples = 20.0;
-				static bool useJitter = true;
-				static bool animatedJitter = true;
 
 				{
 					if (ImGui::Begin("Lighting"))
 					{
-						ImGui::DragInt("Radial iterations", &samples, 1.f, 3, 500);
-						ImGui::Checkbox("Jitter?", &useJitter);
-						ImGui::Indent();
-						ImGui::Checkbox("Animated?", &animatedJitter);
-						ImGui::Unindent();
+						ImGui::DragInt("Radial iterations", &samples, .1f, 0, 128);
+						ImGui::DragFloat("Sun time", &sun_time, 0.001f);
 					}
 					ImGui::End();
 				}
@@ -552,6 +549,8 @@ namespace FoxEngine
 								{
 									auto [transform, meshFilter, meshRenderer] = view.get(entity);
 
+									if (!meshRenderer.texture) continue;
+									if (!meshFilter.mesh) continue;
 									if (transform.tag == "__icon") continue;
 
 									opaqueShader->UniformMat4f("uModel", glm::value_ptr(transform.transform.ToMatrix()));
@@ -559,16 +558,15 @@ namespace FoxEngine
 									meshFilter.mesh->Draw();
 								}
 
-								float sunStrength = 0.0f;
+								float sunStrength = 1.0f;
 								
 								glm::vec2 sunCoordCenter{};
 
 								{
-									glm::vec3 sunDirection = glm::vec3(0, 0, 1);
-									glm::vec3 forward = cameraTransform.ToMatrix() * glm::vec4(0, 0, -1, 0);
+									float local_time = sun_time * 3.141592 * 2.0;
 
-									sunStrength = glm::dot(sunDirection, glm::normalize(forward));
-									if (sunStrength < 0.0f) sunStrength = 0.0f;
+									glm::vec3 sunDirection = glm::vec3(sin(local_time), sin(local_time) * 2, cos(local_time));
+									sunDirection = glm::normalize(sunDirection);
 
 									glm::mat4 viewM = cameraTransform.ToInverseMatrix();
 									viewM[3][0] = 0;
@@ -579,31 +577,38 @@ namespace FoxEngine
 									glm::vec4 viewSpace = viewM * glm::vec4(targetPos, 1.0f);
 									glm::vec4 clipSpace = projection * viewSpace;
 									
-									
+									clipSpace /= clipSpace.w; // Perspective divide
+									sunCoordCenter = glm::vec2(clipSpace);
 
-									//if (clipSpace.w > 1.0f)
-									//{
-										clipSpace /= clipSpace.w; // Perspective divide
-										sunCoordCenter = glm::vec2(clipSpace);
-
-										glm::mat4 pos = glm::identity<glm::mat4>();
-										//pos = glm::translate(pos, glm::vec3(glm::vec2(clipSpace), 0.0f));
-										pos = glm::translate(pos, sunDirection * 2.0f);
+									glm::mat4 pos = glm::identity<glm::mat4>();
+									//pos = glm::translate(pos, glm::vec3(glm::vec2(clipSpace), 0.0f));
+									pos = glm::translate(pos, sunDirection * 5.0f);
 										
-										glDisable(GL_CULL_FACE);
-										// Draw sun
-										sunShader->Bind();
-										sunShader->UniformMat4f("uProjection", glm::value_ptr(projection));
-										sunShader->UniformMat4f("uView", glm::value_ptr(cameraTransform.ToInverseMatrix()));
-										sunShader->UniformMat4f("uModel", glm::value_ptr(pos));
-										
-										fsQuad->Draw();
-										glEnable(GL_CULL_FACE);
-									//}
+									glm::mat4 view = cameraTransform.ToInverseMatrix();
 
-									
+									pos[0][0] = view[0][0];
+									pos[0][1] = view[1][0];
+									pos[0][2] = view[2][0];
+									pos[1][0] = view[0][1];
+									pos[1][1] = view[1][1];
+									pos[1][2] = view[2][1];
+									pos[2][0] = view[0][2];
+									pos[2][1] = view[1][2];
+									pos[2][2] = view[2][2];
+
+									// Draw sun
+									sunShader->Bind();
+									sunShader->UniformMat4f("uProjection", glm::value_ptr(projection));
+									sunShader->UniformMat4f("uView", glm::value_ptr(view));
+									sunShader->UniformMat4f("uModel", glm::value_ptr(pos));
+										
+									fsQuad->Draw();
+
+									// TODO: Add tonemapping
+									// https://www.shadertoy.com/view/ldcSRN
+									// https://www.shadertoy.com/view/fsXcz4
+									// https://www.shadertoy.com/view/4d3SR4
 								}
-
 								
 								glDisable(GL_DEPTH_TEST);
 								glEnable(GL_BLEND);
@@ -616,9 +621,8 @@ namespace FoxEngine
 								radialBlurShader->Uniform2f("uResolution", vpw, vph);
 								radialBlurShader->Uniform2f("uCenter", sunCoordCenter.x * 0.5f + 0.5f, sunCoordCenter.y * 0.5f + 0.5f);
 								radialBlurShader->Uniform1f("uStrength", sunStrength);
-								radialBlurShader->Uniform1f("uTime", animatedJitter ? glfwGetTime() : 0.0f);
-								radialBlurShader->Uniform1f("iterations", samples);
-								radialBlurShader->Uniform1f("useJitter", useJitter ? 1.0f : 0.0f);
+								radialBlurShader->Uniform1f("uTime", currentTime);
+								radialBlurShader->Uniform1f("uIterations", samples);
 								
 								glBindTexture(GL_TEXTURE_2D, fboTexBlack);
 
@@ -652,6 +656,13 @@ namespace FoxEngine
 				{
 					if (ImGui::Begin("Hierarchy", &showHierarchy))
 					{
+						if (ImGui::Button("Create entity"))
+						{
+							entt::handle entity = { mRegistry, mRegistry.create() };
+							auto& transform = entity.emplace<TransformComponent>();
+							transform.name = "unnamed";
+						}
+
 						auto view = mRegistry.view<TransformComponent>();
 
 						for (auto entity : view)
@@ -726,6 +737,13 @@ namespace FoxEngine
 									ImGui::PopID();
 								}
 							}
+							else
+							{
+								if (ImGui::Button("Add Mesh filter"))
+								{
+									handle.emplace<MeshFilterComponent>();
+								}
+							}
 
 							if (auto* component = handle.try_get<MeshRendererComponent>())
 							{
@@ -736,6 +754,13 @@ namespace FoxEngine
 									if (ImGui::Button("Load"))
 										component->texture = FoxEngine::Texture::Create(component->resource);
 									ImGui::PopID();
+								}
+							}
+							else
+							{
+								if (ImGui::Button("Add MEsh render"))
+								{
+									handle.emplace<MeshRendererComponent>();
 								}
 							}
 							
