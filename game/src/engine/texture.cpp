@@ -158,6 +158,9 @@ namespace FoxEngine
 				throw std::runtime_error("Invalid texture dimensions");
 			}
 		}
+		virtual unsigned int Handle() { return mHandle; }
+		virtual unsigned int Target() { return mTarget; }
+
 
 		void Bind(unsigned int unit = 0) override
 		{

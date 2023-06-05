@@ -5,23 +5,23 @@ typedef struct GLFWwindow fe_window_handle;
 
 namespace FoxEngine
 {
-	struct WindowCreateInfo final
-	{
-		int width = 1280;
-		int height = 720;
-		const char* title = "FoxEngine";
-	};
-
 	// May be moved behind an abstraction later if we change window apis
 	class Window final
 	{
+	public:
+		struct CreateInfo final
+		{
+			int width = 1280;
+			int height = 720;
+			const char* title = "FoxEngine";
+		};
 	public:
 		static void PollEvents();
 		static void SwapInterval(int interval);
 		static bool LoadGLFunctions();
 
-		Window() noexcept = default;
-		Window(const WindowCreateInfo& info);
+		constexpr Window() noexcept = default;
+		Window(const CreateInfo& info);
 		~Window() noexcept;
 
 		Window(const Window&) = delete;

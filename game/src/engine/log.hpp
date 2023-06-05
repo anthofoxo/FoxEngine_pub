@@ -6,7 +6,7 @@
 #include <string_view>
 #include <utility> // std::forward
 
-namespace FoxEngine
+namespace FoxEngine::Log
 {
 	// for lua to invoke
 	/*void LogTrace(std::string_view format, void* L)
@@ -18,12 +18,12 @@ namespace FoxEngine
 		spdlog::trace(fmt::vformat(fmt::string_view(format.data(), format.size()), fmt::format_args(store)));
 	}*/
 
-	void LogTrace(std::string_view str);
-	void LogDebug(std::string_view str);
-	void LogInfo(std::string_view str);
-	void LogWarn(std::string_view str);
-	void LogError(std::string_view str);
-	void LogCritical(std::string_view str);
+	void Trace(std::string_view str);
+	void Debug(std::string_view str);
+	void Info(std::string_view str);
+	void Warn(std::string_view str);
+	void Error(std::string_view str);
+	void Critical(std::string_view str);
 
 	template<class... Args>
 	std::string FormatArgs(std::string_view fmt, Args&&... args)
@@ -32,38 +32,38 @@ namespace FoxEngine
 	}
 
 	template<class... Args>
-	void LogTrace(std::string_view fmt, Args&&... args)
+	void Trace(std::string_view fmt, Args&&... args)
 	{
-		LogTrace(FormatArgs<Args...>(fmt, std::forward<Args>(args)...));
+		Trace(FormatArgs<Args...>(fmt, std::forward<Args>(args)...));
 	}
 
 	template<class... Args>
-	void LogDebug(std::string_view fmt, Args&&... args)
+	void Debug(std::string_view fmt, Args&&... args)
 	{
-		LogDebug(FormatArgs<Args...>(fmt, std::forward<Args>(args)...));
+		Debug(FormatArgs<Args...>(fmt, std::forward<Args>(args)...));
 	}
 
 	template<class... Args>
-	void LogInfo(std::string_view fmt, Args&&... args)
+	void Info(std::string_view fmt, Args&&... args)
 	{
-		LogInfo(FormatArgs<Args...>(fmt, std::forward<Args>(args)...));
+		Info(FormatArgs<Args...>(fmt, std::forward<Args>(args)...));
 	}
 
 	template<class... Args>
-	void LogWarn(std::string_view fmt, Args&&... args)
+	void Warn(std::string_view fmt, Args&&... args)
 	{
-		LogWarn(FormatArgs<Args...>(fmt, std::forward<Args>(args)...));
+		Warn(FormatArgs<Args...>(fmt, std::forward<Args>(args)...));
 	}
 
 	template<class... Args>
-	void LogError(std::string_view fmt, Args&&... args)
+	void Error(std::string_view fmt, Args&&... args)
 	{
-		LogError(FormatArgs<Args...>(fmt, std::forward<Args>(args)...));
+		Error(FormatArgs<Args...>(fmt, std::forward<Args>(args)...));
 	}
 
 	template<class... Args>
-	void LogCritical(std::string_view fmt, Args&&... args)
+	void Critical(std::string_view fmt, Args&&... args)
 	{
-		LogCritical(FormatArgs<Args...>(fmt, std::forward<Args>(args)...));
+		Critical(FormatArgs<Args...>(fmt, std::forward<Args>(args)...));
 	}
 }

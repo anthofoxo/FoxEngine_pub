@@ -3,7 +3,7 @@
 #include "engine/shader.hpp"
 #include "engine/mesh.hpp"
 #include "engine/log.hpp"
-#include "engine/experimental/PolyContainer.h"
+#include "engine/Poly.hpp"
 
 #include "vendor/stb_image.h"
 
@@ -163,7 +163,7 @@ namespace FoxEngine
 	public:
 		void Start()
 		{
-			mWindow = FoxEngine::WindowCreateInfo{};
+			mWindow = FoxEngine::Window::CreateInfo{};
 
 			// a bindable input type should be provided, or a way to attach custom listeners
 			struct Input
@@ -310,8 +310,8 @@ namespace FoxEngine
 			glDisable(GL_MULTISAMPLE);
 
 			unsigned int fbo = 0;
-			unsigned int fboTex = 0;
-			unsigned int fboTexBlack = 0;
+			std::unique_ptr<FoxEngine::Texture> fboTex;
+			std::unique_ptr<FoxEngine::Texture> fboTexBlack;
 			unsigned int fboDep = 0;
 			int vpw = 0, vph = 0;
 
@@ -454,7 +454,7 @@ namespace FoxEngine
 
 				static float sun_time = 0;
 
-				static int samples = 20.0;
+				static int samples = 20;
 
 				{
 					if (ImGui::Begin("Lighting"))
@@ -486,31 +486,40 @@ namespace FoxEngine
 							// if size changed, resize is required
 							if (vpw != size.x || vph != size.y)
 							{
-								vpw = size.x;
-								vph = size.y;
+								vpw = static_cast<int>(size.x);
+								vph = static_cast<int>(size.y);
 
 								if (fbo) glDeleteFramebuffers(1, &fbo);
-								if (fboTex) glDeleteTextures(1, &fboTex);
-								if (fboTexBlack) glDeleteTextures(1, &fboTexBlack);
 								if (fboDep) glDeleteRenderbuffers(1, &fboDep);
+						
+								// TODO
+								//https://gitea.yiem.net/QianMo/Real-Time-Rendering-4th-Bibliography-Collection/raw/branch/main/Chapter%201-24/[0832]%20[SIGGRAPH%202014]%20Next%20Generation%20Post%20Processing%20in%20Call%20of%20Duty%20Advanced%20Warfare.pdf
 
-								glGenTextures(1, &fboTex);
-								glBindTexture(GL_TEXTURE_2D, fboTex);
-								glTexImage2D(GL_TEXTURE_2D, 0, GL_RGBA8, vpw, vph, 0, GL_RGBA, GL_UNSIGNED_BYTE, nullptr);
-								glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_WRAP_S, GL_CLAMP_TO_EDGE);
-								glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_WRAP_T, GL_CLAMP_TO_EDGE);
-								glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_WRAP_R, GL_CLAMP_TO_EDGE);
-								glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MIN_FILTER, GL_LINEAR);
-								glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MAG_FILTER, GL_NEAREST);
 
-								glGenTextures(1, &fboTexBlack);
-								glBindTexture(GL_TEXTURE_2D, fboTexBlack);
-								glTexImage2D(GL_TEXTURE_2D, 0, GL_RGBA8, vpw, vph, 0, GL_RGBA, GL_UNSIGNED_BYTE, nullptr);
-								glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_WRAP_S, GL_CLAMP_TO_EDGE);
-								glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_WRAP_T, GL_CLAMP_TO_EDGE);
-								glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_WRAP_R, GL_CLAMP_TO_EDGE);
-								glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MIN_FILTER, GL_LINEAR);
-								glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MAG_FILTER, GL_NEAREST);
+								// Testing out poly, seems to work, would be amazing to have a way to convert it to a unique_ptr
+								fboTex = FoxEngine::Texture::Create(
+									{
+										.width = vpw,
+										.height = vph,
+										.format = FoxEngine::Texture::Format::Rgba8,
+										.wrap = FoxEngine::Texture::Wrap::Clamp,
+										.min = FoxEngine::Texture::Filter::Nearest,
+										.mag = FoxEngine::Texture::Filter::Nearest,
+										.debugName = "FBO color att 0"
+										
+									});
+
+								fboTexBlack = FoxEngine::Texture::Create(
+									{
+										.width = vpw,
+										.height = vph,
+										.format = FoxEngine::Texture::Format::Rgba8,
+										.wrap = FoxEngine::Texture::Wrap::Clamp,
+										.min = FoxEngine::Texture::Filter::Nearest,
+										.mag = FoxEngine::Texture::Filter::Nearest,
+										.debugName = "FBO color att 1"
+
+									});
 
 								glGenRenderbuffers(1, &fboDep);
 								glBindRenderbuffer(GL_RENDERBUFFER, fboDep);
@@ -518,8 +527,8 @@ namespace FoxEngine
 
 								glGenFramebuffers(1, &fbo);
 								glBindFramebuffer(GL_FRAMEBUFFER, fbo);
-								glFramebufferTexture2D(GL_FRAMEBUFFER, GL_COLOR_ATTACHMENT0, GL_TEXTURE_2D, fboTex, 0);
-								glFramebufferTexture2D(GL_FRAMEBUFFER, GL_COLOR_ATTACHMENT1, GL_TEXTURE_2D, fboTexBlack, 0);
+								glFramebufferTexture2D(GL_FRAMEBUFFER, GL_COLOR_ATTACHMENT0, fboTex->Target(), fboTex->Handle(), 0);
+								glFramebufferTexture2D(GL_FRAMEBUFFER, GL_COLOR_ATTACHMENT1, fboTexBlack->Target(), fboTexBlack->Handle(), 0);
 								glFramebufferRenderbuffer(GL_FRAMEBUFFER, GL_DEPTH_ATTACHMENT, GL_RENDERBUFFER, fboDep);
 
 								unsigned int vals[]{ GL_COLOR_ATTACHMENT0, GL_COLOR_ATTACHMENT1 };
@@ -563,7 +572,7 @@ namespace FoxEngine
 								glm::vec2 sunCoordCenter{};
 
 								{
-									float local_time = sun_time * 3.141592 * 2.0;
+									float local_time = sun_time * 3.141592f * 2.0f;
 
 									glm::vec3 sunDirection = glm::vec3(sin(local_time), sin(local_time) * 2, cos(local_time));
 									sunDirection = glm::normalize(sunDirection);
@@ -618,13 +627,13 @@ namespace FoxEngine
 
 								// do radial blur
 								radialBlurShader->Bind();
-								radialBlurShader->Uniform2f("uResolution", vpw, vph);
+								radialBlurShader->Uniform2f("uResolution", (float)vpw, (float)vph);
 								radialBlurShader->Uniform2f("uCenter", sunCoordCenter.x * 0.5f + 0.5f, sunCoordCenter.y * 0.5f + 0.5f);
 								radialBlurShader->Uniform1f("uStrength", sunStrength);
-								radialBlurShader->Uniform1f("uTime", currentTime);
-								radialBlurShader->Uniform1f("uIterations", samples);
+								radialBlurShader->Uniform1f("uTime", (float)currentTime);
+								radialBlurShader->Uniform1f("uIterations", (float)samples);
 								
-								glBindTexture(GL_TEXTURE_2D, fboTexBlack);
+								fboTexBlack->Bind();
 
 								unsigned int bufs[] = { GL_COLOR_ATTACHMENT0 };
 								glDrawBuffers(1, bufs);
@@ -640,7 +649,7 @@ namespace FoxEngine
 								glDepthMask(GL_TRUE);
 							}
 
-							ImGui::Image((ImTextureID)(intptr_t)fboTex, { (float)vpw, (float)vph }, { 0, 1 }, { 1, 0 });
+							ImGui::Image((ImTextureID)(intptr_t)fboTex->Handle(), {(float)vpw, (float)vph}, {0, 1}, {1, 0});
 						}
 
 
@@ -910,9 +919,40 @@ namespace FoxEngine
 	};
 }
 
+#include <filesystem>
+
+static void RedirectWorkingDirectory()
+{
+	const char* lookingFor = "foxengine_data";
+
+	auto stored = std::filesystem::current_path();
+
+	// Only search up to so many levels
+	for (int i = 0; i < 4; ++i)
+	{
+		if (std::filesystem::exists(lookingFor))
+		{
+			std::filesystem::current_path(lookingFor);
+			FoxEngine::Log::Info("Engine content directory located");
+			return;
+		}
+
+		std::filesystem::current_path(std::filesystem::current_path().parent_path());
+	}
+
+	std::filesystem::current_path(stored);
+	FoxEngine::Log::Warn("Engine content directory NOT located");
+}
+
 int main(int argc, char* argv[])
 {
-	FoxEngine::LogInfo("Welcome to FoxEngine");
+	// hmmmm add an argparser???
+	// See: https://github.com/p-ranav/argparse
+
+	FoxEngine::Log::Info("Welcome to FoxEngine");
+
+	RedirectWorkingDirectory();
+	
 	stbi_set_flip_vertically_on_load(true);
 
 	FoxEngine::Engine engine;

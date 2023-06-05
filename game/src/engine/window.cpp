@@ -26,7 +26,7 @@ namespace FoxEngine
 		return gladLoadGL(&glfwGetProcAddress);
 	}
 
-	Window::Window(const WindowCreateInfo& info)
+	Window::Window(const CreateInfo& info)
 	{
 		if (!s_ready)
 		{

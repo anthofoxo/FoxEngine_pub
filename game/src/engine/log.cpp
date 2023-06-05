@@ -18,7 +18,7 @@
 #	include <unistd.h>
 #endif
 
-namespace FoxEngine
+namespace FoxEngine::Log
 {
 	namespace
 	{
@@ -38,27 +38,27 @@ namespace FoxEngine
 		static AutoLog sAutoLog;
 	}
 
-	void LogTrace(std::string_view str)
+	void Trace(std::string_view str)
 	{
 		spdlog::trace(str);
 	}
 
-	void LogDebug(std::string_view str)
+	void Debug(std::string_view str)
 	{
 		spdlog::debug(str);
 	}
 
-	void LogInfo(std::string_view str)
+	void Info(std::string_view str)
 	{
 		spdlog::info(str);
 	}
 
-	void LogWarn(std::string_view str)
+	void Warn(std::string_view str)
 	{
 		spdlog::warn(str);
 	}
 
-	void LogError(std::string_view str)
+	void Error(std::string_view str)
 	{
 		spdlog::error(str);
 	}
@@ -118,7 +118,7 @@ namespace FoxEngine
 #endif
 	}
 
-	void LogCritical(std::string_view str)
+	void Critical(std::string_view str)
 	{
 		spdlog::critical(str);
 		

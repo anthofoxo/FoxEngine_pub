@@ -59,5 +59,8 @@ namespace FoxEngine
 
 		virtual void Upload(const UploadInfo& info) = 0;
 		virtual void Bind(unsigned int unit = 0) = 0;
+
+		virtual unsigned int Handle() = 0;
+		virtual unsigned int Target() = 0;
 	};
 }
