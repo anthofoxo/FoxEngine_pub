@@ -28,13 +28,12 @@ namespace FoxEngine
 		Window& operator=(const Window&) = delete;
 		Window(Window&& other) noexcept;
 		Window& operator=(Window&& other) noexcept;
-		friend void swap(Window& lhs, Window& rhs) noexcept;
 
-		inline GLFWwindow* Handle() const noexcept { return m_handle; }
+		GLFWwindow* Handle() const noexcept { return mHandle; }
 
-		void SwapBuffers();
-		void MakeContextCurrent();
+		void SwapBuffers() const;
+		void MakeContextCurrent() const;
 	private:
-		GLFWwindow* m_handle = nullptr;
+		GLFWwindow* mHandle = nullptr;
 	};
 }

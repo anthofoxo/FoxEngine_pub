@@ -1,7 +1,8 @@
 #pragma once
 
+#include "Poly.hpp"
+
 #include <string_view>
-#include <memory>
 
 namespace FoxEngine
 {
@@ -47,10 +48,10 @@ namespace FoxEngine
 			const void* pixels = nullptr;
 		};
 
-		static std::unique_ptr<Texture> Create(const CreateInfo& info);
-		static std::unique_ptr<Texture> Create(std::string_view resource);
+		static Poly<Texture> Create(const CreateInfo& info);
+		static Poly<Texture> Create(std::string_view resource);
 	public:
-		Texture() noexcept = default;
+		constexpr Texture() noexcept = default;
 		virtual ~Texture() noexcept = default;
 		Texture(const Texture&) = delete;
 		Texture& operator=(const Texture&) = delete;
@@ -60,7 +61,7 @@ namespace FoxEngine
 		virtual void Upload(const UploadInfo& info) = 0;
 		virtual void Bind(unsigned int unit = 0) = 0;
 
-		virtual unsigned int Handle() = 0;
-		virtual unsigned int Target() = 0;
+		virtual unsigned int Handle() const noexcept = 0;
+		virtual unsigned int Target() const noexcept = 0;
 	};
 }

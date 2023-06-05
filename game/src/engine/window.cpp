@@ -1,15 +1,16 @@
-#include "window.hpp"
+#include "Window.hpp"
+
+#include "Log.hpp"
 
 #include <GLFW/glfw3.h>
 #include <glad/gl.h>
 
 #include <utility>
-#include <stdexcept>
 
 namespace FoxEngine
 {
-	static bool s_ready = false;
-	static unsigned int s_count = 0;
+	static bool sReady = false;
+	static unsigned int sCount = 0;
 
 	void Window::PollEvents()
 	{
@@ -28,18 +29,17 @@ namespace FoxEngine
 
 	Window::Window(const CreateInfo& info)
 	{
-		if (!s_ready)
+		if (!sReady)
 		{
-			// we sould register error callbacks
-			//static void glfw_error_callback(int error, const char* description)
-			//{
-			//	fprintf(stderr, "GLFW Error %d: %s\n", error, description);
-			//}
+			glfwSetErrorCallback([](int error, const char* description)
+				{
+					Log::Error("Glfw error {}: {}", error, description);
+				});
 
 			if (!glfwInit())
-				throw std::runtime_error("Failed to initialize glfw");
+				Log::Critical("Failed to initialize glfw");
 
-			s_ready = true;
+			sReady = true;
 		}
 
 		glfwWindowHint(GLFW_CONTEXT_VERSION_MAJOR, 3);
@@ -47,53 +47,47 @@ namespace FoxEngine
 		glfwWindowHint(GLFW_OPENGL_FORWARD_COMPAT, GLFW_TRUE);
 		glfwWindowHint(GLFW_OPENGL_PROFILE, GLFW_OPENGL_CORE_PROFILE);
 
-		m_handle = glfwCreateWindow(info.width, info.height, info.title, nullptr, nullptr);
+		mHandle = glfwCreateWindow(info.width, info.height, info.title, nullptr, nullptr);
 
-		if(!m_handle)
-			throw std::runtime_error("Failed to create window");
+		if(!mHandle)
+			Log::Critical("Failed to create window");
 
-		++s_count;
+		++sCount;
 	}
 
 	Window::~Window() noexcept
 	{
-		if (m_handle)
+		if (mHandle)
 		{
-			glfwDestroyWindow(m_handle);
-			--s_count;
+			glfwDestroyWindow(mHandle);
+			--sCount;
 		}
 
-		if (s_ready && s_count == 0)
+		if (sReady && sCount == 0)
 		{
 			glfwTerminate();
-			s_ready = false;
+			sReady = false;
 		}
 	}
 
 	Window::Window(Window&& other) noexcept
 	{
-		swap(*this, other);
+		*this = std::move(other);
 	}
 	
 	Window& Window::operator=(Window&& other) noexcept
 	{
-		swap(*this, other);
+		std::swap(mHandle, other.mHandle);
 		return *this;
 	}
 
-	void swap(Window& lhs, Window& rhs) noexcept
+	void Window::SwapBuffers() const
 	{
-		using std::swap;
-		swap(lhs.m_handle, rhs.m_handle);
+		glfwSwapBuffers(mHandle);
 	}
 
-	void Window::SwapBuffers()
+	void Window::MakeContextCurrent() const
 	{
-		glfwSwapBuffers(m_handle);
-	}
-
-	void Window::MakeContextCurrent()
-	{
-		glfwMakeContextCurrent(m_handle);
+		glfwMakeContextCurrent(mHandle);
 	}
 }

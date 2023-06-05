@@ -215,7 +215,7 @@ namespace FoxEngine
 					.width = 1,
 					.height = 1,
 					.debugName = "Default texture (white)"
-				});
+				}).MakeUnique();
 
 			unsigned char vals[]{(unsigned char)255,(unsigned char)255,(unsigned char)255,(unsigned char)255};
 
@@ -291,7 +291,7 @@ namespace FoxEngine
 
 				MeshRendererComponent& meshRenderer = entity.emplace<MeshRendererComponent>();
 				meshRenderer.resource = "fox.png";
-				meshRenderer.texture = FoxEngine::Texture::Create(meshRenderer.resource);
+				meshRenderer.texture = FoxEngine::Texture::Create(meshRenderer.resource).MakeUnique();
 
 				transform.transform.orientation = glm::rotate(transform.transform.orientation, glm::radians(180.f), glm::vec3(1, 0, 0));
 
@@ -310,8 +310,8 @@ namespace FoxEngine
 			glDisable(GL_MULTISAMPLE);
 
 			unsigned int fbo = 0;
-			std::unique_ptr<FoxEngine::Texture> fboTex;
-			std::unique_ptr<FoxEngine::Texture> fboTexBlack;
+			FoxEngine::Poly<FoxEngine::Texture> fboTex;
+			FoxEngine::Poly<FoxEngine::Texture> fboTexBlack;
 			unsigned int fboDep = 0;
 			int vpw = 0, vph = 0;
 
@@ -761,7 +761,7 @@ namespace FoxEngine
 									ImGui::InputText("Texture", &component->resource);
 									ImGui::PushID(component);
 									if (ImGui::Button("Load"))
-										component->texture = FoxEngine::Texture::Create(component->resource);
+										component->texture = FoxEngine::Texture::Create(component->resource).MakeUnique();
 									ImGui::PopID();
 								}
 							}

@@ -1,7 +1,7 @@
 #pragma once
 
 // Use to implment move/copy operations
-#include <typeinfo>
+// #include <typeinfo>
 
 #include <type_traits>
 #include <memory> // std::destroy_at, std::unique_ptr
@@ -15,18 +15,18 @@ namespace FoxEngine
 	class Poly final
 	{
 	public:
-		Poly() noexcept = default;
+		constexpr Poly() noexcept = default;
 
 		template<class U, class... Args, std::enable_if_t<std::is_base_of_v<T, U>, bool> = true>
 		Poly(U*, Args&& ...args)
 		{
-			static_assert(sizeof(U) <= S);
+			static_assert(sizeof(U) <= S, "Poly container isn't large enough, make S larger");
+			static_assert(std::is_default_constructible_v<U>, "U must be default constructible");
+			static_assert(std::is_base_of_v<T, U>, "U must be a derived type of T");
 
 			new(&mBuffer) U(std::forward<Args>(args)...);
 			mDtor = [](void* ptr) { std::destroy_at(static_cast<U*>(ptr)); };
-			mUnique = []() -> std::unique_ptr<T> { return std::make_unique<U>(); };
-			mTypeHash = typeid(U).hash_code();
-			mTypeSize = sizeof(U);
+			mUnique = [](void* ptr) -> std::unique_ptr<T> { return std::make_unique<U>(std::move(*(U*)ptr)); };
 		}
 
 		~Poly()
@@ -36,22 +36,14 @@ namespace FoxEngine
 		}
 
 		// Allocates heap memory, moves object into heap, invalidates the poly object, may be reassigned to another type
-		// Can be undone, once turned into a shared_ptr, cannot be undone
 		std::unique_ptr<T> MakeUnique()&&
 		{
-			std::unique_ptr<T> ptr = mUnique();
+			auto unique = mUnique(mBuffer);
 
-			mTypeHash = 0;
-			mTypeSize = 0;
 			mDtor = nullptr;
 			mUnique = nullptr;
 
-			char* p = (char*)ptr.get();
-
-			for (size_t i = 0; i < mTypeSize; ++i)
-				std::swap(p[i], ((char*)mBuffer)[i]);
-
-			return ptr;
+			return unique;
 		}
 
 		// Much more runtime checks are needed to safely support these operations
@@ -67,16 +59,13 @@ namespace FoxEngine
 			*this = std::move(other);
 		}
 
-
 		Poly& operator=(Poly&& other)
 		{
 			for (size_t i = 0; i < S; ++i)
 				std::swap(mBuffer[i], other.mBuffer[i]);
 
-			std::swap(mTypeHash, other.mTypeHash);
 			std::swap(mDtor, other.mDtor);
 			std::swap(mUnique, other.mUnique);
-			std::swap(mTypeSize, other.mTypeSize);
 
 			return *this;
 		}
@@ -86,10 +75,8 @@ namespace FoxEngine
 		T const* operator->() const { return (const T*)mBuffer; }
 		T* get() { return (T*)mBuffer; }
 	public:
-		size_t mTypeHash = 0;
-		size_t mTypeSize = 0;
-		char mBuffer[S];
+		char mBuffer[S]{};
 		void(*mDtor)(void*) = nullptr;
-		std::unique_ptr<T>(*mUnique)() = nullptr;
+		std::unique_ptr<T>(*mUnique)(void*) = nullptr;
 	};
 }
