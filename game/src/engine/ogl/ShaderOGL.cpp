@@ -7,6 +7,7 @@
 #include <glad/gl.h>
 
 #include <utility>
+#include <regex>
 
 namespace FoxEngine
 {
@@ -52,9 +53,28 @@ namespace FoxEngine
 		std::string fragCommon = common_pre + "#define FE_FRAG\n#define varying(type, name) in type name\n#define input(type, name, index)\n#define output(type, name, index) layout(location = index) out type name\n\n" + common_post;
 
 		Blob source = Blob::FromFile(info.filename);
+		std::string stringSource = std::string(reinterpret_cast<char*>(source.data()), source.size());
 
-		std::string vertSource = vertCommon + std::string(reinterpret_cast<char*>(source.data()), source.size());
-		std::string fragSource = fragCommon + std::string(reinterpret_cast<char*>(source.data()), source.size());
+		std::regex regex("^@pragma\\s+([A-Za-z_]+)\\s");
+		auto words_begin = std::sregex_iterator(stringSource.begin(), stringSource.end(), regex);
+		auto words_end = std::sregex_iterator();
+
+		for (std::sregex_iterator i = words_begin; i != words_end; ++i) {
+			std::smatch match = *i;
+
+			std::string matches = match[1].str();
+
+			if (matches == "backface_nocull")
+				mCullsBackfaces = false;			
+
+			stringSource = match.prefix().str() + match.suffix().str();
+			
+			Log::Info("Foxengine shader pragma: {}", matches);
+			
+		}
+
+		std::string vertSource = vertCommon + stringSource;
+		std::string fragSource = fragCommon + stringSource;
 
 		auto vert = CreateShader(GL_VERTEX_SHADER, vertSource);
 		auto frag = CreateShader(GL_FRAGMENT_SHADER, fragSource);
@@ -125,6 +145,7 @@ namespace FoxEngine
 	{
 		std::swap(mHandle, other.mHandle);
 		std::swap(mUniforms, other.mUniforms);
+		std::swap(mCullsBackfaces, other.mCullsBackfaces);
 
 		return *this;
 	}

@@ -39,7 +39,7 @@ namespace FoxEngine
 		throw std::runtime_error("Invalid texture wrap");
 	}
 
-	static unsigned int TextureFormatToInternalFormat(Texture::Format format)
+	unsigned int TextureFormatToInternalFormat(ImageFormat format)
 	{
 		using enum Texture::Format;
 
@@ -47,6 +47,8 @@ namespace FoxEngine
 		{
 		case Rgba8:
 			return GL_RGBA8;
+		case D24:
+			return GL_DEPTH_COMPONENT24;
 		}
 
 		throw std::runtime_error("Invalid texture format");
@@ -60,6 +62,8 @@ namespace FoxEngine
 		{
 		case Rgba8:
 			return GL_RGBA;
+		case D24:
+			return GL_DEPTH_COMPONENT;
 		}
 
 		throw std::runtime_error("Invalid texture format");
@@ -72,7 +76,8 @@ namespace FoxEngine
 		switch (format)
 		{
 		case Rgba8:
-			return GL_UNSIGNED_BYTE;	
+		case D24:
+			return GL_UNSIGNED_BYTE;
 		}
 
 		throw std::runtime_error("Invalid texture format");

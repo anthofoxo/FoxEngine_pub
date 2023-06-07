@@ -4,6 +4,7 @@
 #include "engine/mesh.hpp"
 #include "engine/log.hpp"
 #include "engine/Poly.hpp"
+#include "engine/Renderbuffer.hpp"
 
 #include "vendor/stb_image.h"
 
@@ -152,8 +153,57 @@ struct MeshFilterComponent final
 
 struct MeshRendererComponent final
 {
+	std::shared_ptr<FoxEngine::Shader> shader;
+	std::string shaderResource;
+
 	std::shared_ptr<FoxEngine::Texture> texture;
 	std::string resource;
+};
+
+#include "engine/UnorderedMapString.hpp"
+
+// Not in final use yet
+class ResourceManager final
+{
+public:
+	std::shared_ptr<FoxEngine::Mesh> GetMesh(std::string_view resource)
+	{
+		auto it = mMeshes.find(resource);
+
+		if (it != mMeshes.end())
+			if (std::shared_ptr<FoxEngine::Mesh> ref = it->second.lock())
+				return ref;
+
+		FoxEngine::Log::Info("Loading mesh: {}", resource);
+
+		std::shared_ptr<FoxEngine::Mesh> ref = load_mesh(resource);
+		mMeshes[std::string(resource)] = ref;
+		return ref;
+	}
+
+	std::shared_ptr<FoxEngine::Shader> GetShader(std::string_view resource)
+	{
+		auto it = mShaders.find(resource);
+
+		if (it != mShaders.end())
+			if (std::shared_ptr<FoxEngine::Shader> ref = it->second.lock())
+				return ref;
+
+		FoxEngine::Log::Info("Loading shader: {}", resource);
+
+		std::shared_ptr<FoxEngine::Shader> ref = FoxEngine::Shader::Create(
+			{
+				.filename = resource,
+				.debugName = resource
+			}).MakeUnique();
+
+		mShaders[std::string(resource)] = ref;
+		return ref;
+	}
+
+private:
+	FoxEngine::UnorderedStringMap<std::weak_ptr<FoxEngine::Mesh>> mMeshes;
+	FoxEngine::UnorderedStringMap<std::weak_ptr<FoxEngine::Shader>> mShaders;
 };
 
 namespace FoxEngine
@@ -242,12 +292,6 @@ namespace FoxEngine
 					.indices = indices
 				});
 
-			std::unique_ptr<FoxEngine::Shader> opaqueShader = FoxEngine::Shader::Create(
-				{
-					.filename = "opaque.glsl",
-					.debugName = "opaque.glsl"
-				}).MakeUnique();
-
 			std::unique_ptr<FoxEngine::Shader> radialBlurShader = FoxEngine::Shader::Create(
 				{
 					.filename = "radial_blur.glsl",
@@ -262,16 +306,21 @@ namespace FoxEngine
 
 			Transform cameraTransform;
 
+			ResourceManager resourceManager;
+
 			{
 				entt::handle entity = { mRegistry, mRegistry.create() };
 				TransformComponent& transform = entity.emplace<TransformComponent>();
 				MeshFilterComponent& meshFilter = entity.emplace<MeshFilterComponent>();
 				MeshRendererComponent& meshRenderer = entity.emplace<MeshRendererComponent>();
 				meshFilter.resource = "dragon.obj";
-				meshFilter.mesh = load_mesh(meshFilter.resource);
+				meshFilter.mesh = resourceManager.GetMesh(meshFilter.resource);
 
 				meshRenderer.resource = "#";
 				meshRenderer.texture = defaultTex;
+
+				meshRenderer.shaderResource = "opaque.glsl";
+				meshRenderer.shader = resourceManager.GetShader(meshRenderer.shaderResource);
 
 				transform.name = "dergon";
 				transform.transform.translation.z = -10;
@@ -284,7 +333,7 @@ namespace FoxEngine
 				TransformComponent& transform = entity.emplace<TransformComponent>();
 				MeshFilterComponent& meshFilter = entity.emplace<MeshFilterComponent>();
 				meshFilter.resource = "fox.obj";
-				meshFilter.mesh = load_mesh(meshFilter.resource);
+				meshFilter.mesh = resourceManager.GetMesh(meshFilter.resource);
 				transform.name = "foxo";
 				transform.tag = "__icon";
 				transform.transform.translation.z = -4;
@@ -292,6 +341,9 @@ namespace FoxEngine
 				MeshRendererComponent& meshRenderer = entity.emplace<MeshRendererComponent>();
 				meshRenderer.resource = "fox.png";
 				meshRenderer.texture = FoxEngine::Texture::Create(meshRenderer.resource).MakeUnique();
+
+				meshRenderer.shaderResource = "opaque.glsl";
+				meshRenderer.shader = resourceManager.GetShader(meshRenderer.shaderResource);
 
 				transform.transform.orientation = glm::rotate(transform.transform.orientation, glm::radians(180.f), glm::vec3(1, 0, 0));
 
@@ -312,31 +364,38 @@ namespace FoxEngine
 			unsigned int fbo = 0;
 			FoxEngine::Poly<FoxEngine::Texture> fboTex;
 			FoxEngine::Poly<FoxEngine::Texture> fboTexBlack;
-			unsigned int fboDep = 0;
+			FoxEngine::Poly<FoxEngine::Renderbuffer> fboDep;
 			int vpw = 0, vph = 0;
 
+
 			unsigned int iconFbo;
-			unsigned int iconTex;
-			unsigned int iconDep;
+			FoxEngine::Poly<FoxEngine::Texture> iconTex;
+			FoxEngine::Poly<FoxEngine::Renderbuffer> iconDep;
 			int size = 64;
 
-			glGenTextures(1, &iconTex);
-			glBindTexture(GL_TEXTURE_2D, iconTex);
-			glTexImage2D(GL_TEXTURE_2D, 0, GL_RGBA8, size, size, 0, GL_RGBA, GL_UNSIGNED_BYTE, nullptr);
-			glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_WRAP_S, GL_CLAMP_TO_EDGE);
-			glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_WRAP_T, GL_CLAMP_TO_EDGE);
-			glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_WRAP_R, GL_CLAMP_TO_EDGE);
-			glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MIN_FILTER, GL_LINEAR);
-			glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MAG_FILTER, GL_NEAREST);
+			iconTex = FoxEngine::Texture::Create(
+				{
+					.width = size,
+					.height = size,
+					.format = FoxEngine::ImageFormat::Rgba8,
+					.wrap = FoxEngine::Texture::Wrap::Clamp,
+					.min = FoxEngine::Texture::Filter::Nearest,
+					.mag = FoxEngine::Texture::Filter::Nearest,
+					.debugName = "icon color att 0"
 
-			glGenRenderbuffers(1, &iconDep);
-			glBindRenderbuffer(GL_RENDERBUFFER, iconDep);
-			glRenderbufferStorage(GL_RENDERBUFFER, GL_DEPTH_COMPONENT16, size, size);
+				});
+
+			iconDep = FoxEngine::Renderbuffer::Create(
+				{
+					.width = size,
+					.height = size,
+					.format = FoxEngine::ImageFormat::D24
+				});
 
 			glGenFramebuffers(1, &iconFbo);
 			glBindFramebuffer(GL_FRAMEBUFFER, iconFbo);
-			glFramebufferTexture2D(GL_FRAMEBUFFER, GL_COLOR_ATTACHMENT0, GL_TEXTURE_2D, iconTex, 0);
-			glFramebufferRenderbuffer(GL_FRAMEBUFFER, GL_DEPTH_ATTACHMENT, GL_RENDERBUFFER, iconDep);
+			glFramebufferTexture2D(GL_FRAMEBUFFER, GL_COLOR_ATTACHMENT0, iconTex->Target(), iconTex->Handle(), 0);
+			glFramebufferRenderbuffer(GL_FRAMEBUFFER, GL_DEPTH_ATTACHMENT, GL_RENDERBUFFER, iconDep->Handle());
 
 			std::unique_ptr<char[]> pixels = std::make_unique<char[]>(size * size * 4);
 			glm::mat4 projection;
@@ -388,8 +447,6 @@ namespace FoxEngine
 
 				if (cameraEdit)
 				{
-					
-
 					if (glm::length2(mouse_delta) > 1)
 					{
 						glm::vec4 axis = cameraTransform.ToInverseMatrix() * glm::vec4(0, 1, 0, 0);
@@ -490,7 +547,6 @@ namespace FoxEngine
 								vph = static_cast<int>(size.y);
 
 								if (fbo) glDeleteFramebuffers(1, &fbo);
-								if (fboDep) glDeleteRenderbuffers(1, &fboDep);
 						
 								// TODO
 								//https://gitea.yiem.net/QianMo/Real-Time-Rendering-4th-Bibliography-Collection/raw/branch/main/Chapter%201-24/[0832]%20[SIGGRAPH%202014]%20Next%20Generation%20Post%20Processing%20in%20Call%20of%20Duty%20Advanced%20Warfare.pdf
@@ -521,15 +577,18 @@ namespace FoxEngine
 
 									});
 
-								glGenRenderbuffers(1, &fboDep);
-								glBindRenderbuffer(GL_RENDERBUFFER, fboDep);
-								glRenderbufferStorage(GL_RENDERBUFFER, GL_DEPTH_COMPONENT16, vpw, vph);
+								fboDep = FoxEngine::Renderbuffer::Create(
+									{
+										.width = vpw,
+										.height = vph,
+										.format = FoxEngine::ImageFormat::D24
+									});
 
 								glGenFramebuffers(1, &fbo);
 								glBindFramebuffer(GL_FRAMEBUFFER, fbo);
 								glFramebufferTexture2D(GL_FRAMEBUFFER, GL_COLOR_ATTACHMENT0, fboTex->Target(), fboTex->Handle(), 0);
 								glFramebufferTexture2D(GL_FRAMEBUFFER, GL_COLOR_ATTACHMENT1, fboTexBlack->Target(), fboTexBlack->Handle(), 0);
-								glFramebufferRenderbuffer(GL_FRAMEBUFFER, GL_DEPTH_ATTACHMENT, GL_RENDERBUFFER, fboDep);
+								glFramebufferRenderbuffer(GL_FRAMEBUFFER, GL_DEPTH_ATTACHMENT, GL_RENDERBUFFER, fboDep->Handle());
 
 								unsigned int vals[]{ GL_COLOR_ATTACHMENT0, GL_COLOR_ATTACHMENT1 };
 								glDrawBuffers(2, vals);
@@ -547,11 +606,6 @@ namespace FoxEngine
 								// projection resize should also be bound to window resize operations
 								projection = glm::perspectiveFov(glm::radians(90.0f), (float)vpw, (float)vph, 0.1f, 1000.0f);
 
-								// Uniforms will not stay forever, prefer uniform buffer blocks
-								opaqueShader->Bind();
-								opaqueShader->UniformMat4f("uProjection", glm::value_ptr(projection));
-								opaqueShader->UniformMat4f("uView", glm::value_ptr(cameraTransform.ToInverseMatrix()));
-
 								auto view = mRegistry.view<TransformComponent, MeshFilterComponent, MeshRendererComponent>();
 
 								for (auto entity : view)
@@ -559,12 +613,25 @@ namespace FoxEngine
 									auto [transform, meshFilter, meshRenderer] = view.get(entity);
 
 									if (!meshRenderer.texture) continue;
+									if (!meshRenderer.shader) continue;
 									if (!meshFilter.mesh) continue;
 									if (transform.tag == "__icon") continue;
 
-									opaqueShader->UniformMat4f("uModel", glm::value_ptr(transform.transform.ToMatrix()));
+									bool cullsBackFaces = meshRenderer.shader->CullsBackFaces();
+
+									if (!cullsBackFaces)
+										glDisable(GL_CULL_FACE);
+
+									meshRenderer.shader->Bind();
+									meshRenderer.shader->UniformMat4f("uProjection", glm::value_ptr(projection));
+									meshRenderer.shader->UniformMat4f("uView", glm::value_ptr(cameraTransform.ToInverseMatrix()));
+									meshRenderer.shader->UniformMat4f("uModel", glm::value_ptr(transform.transform.ToMatrix()));
+
 									meshRenderer.texture->Bind();
 									meshFilter.mesh->Draw();
+
+									if (!cullsBackFaces)
+										glEnable(GL_CULL_FACE);
 								}
 
 								float sunStrength = 1.0f;
@@ -742,7 +809,7 @@ namespace FoxEngine
 
 									ImGui::PushID(component);
 									if(ImGui::Button("Load"))
-										component->mesh = load_mesh(component->resource);
+										component->mesh = resourceManager.GetMesh(component->resource);
 									ImGui::PopID();
 								}
 							}
@@ -763,11 +830,17 @@ namespace FoxEngine
 									if (ImGui::Button("Load"))
 										component->texture = FoxEngine::Texture::Create(component->resource).MakeUnique();
 									ImGui::PopID();
+
+									ImGui::InputText("Shader", &component->shaderResource);
+									ImGui::PushID(component);
+									if (ImGui::Button("Load Shader"))
+										component->shader = resourceManager.GetShader(component->shaderResource);
+									ImGui::PopID();
 								}
 							}
 							else
 							{
-								if (ImGui::Button("Add MEsh render"))
+								if (ImGui::Button("Add Mesh render"))
 								{
 									handle.emplace<MeshRendererComponent>();
 								}
@@ -828,19 +901,13 @@ namespace FoxEngine
 						t.orientation = glm::rotate(t.orientation, (float)glm::radians(45.0 * rotateDelta), glm::vec3(0, 1, 0));
 						rotateDelta = 0.0;
 
+						glBindRenderbuffer(GL_RENDERBUFFER, 0);
+						glBindTexture(GL_TEXTURE_2D, 0);
 						glBindFramebuffer(GL_FRAMEBUFFER, iconFbo);
 						glViewport(0, 0, size, size);
 
 						glClearColor(0, 0, 0, 0);
 						glClear(GL_COLOR_BUFFER_BIT | GL_DEPTH_BUFFER_BIT);
-
-						// projection resize should also be bound to window resize operations
-						projection = glm::perspectiveFov(glm::radians(60.0f), (float)size, (float)size, 0.01f, 10.0f);
-
-						// Uniforms will not stay forever, prefer uniform buffer blocks
-						opaqueShader->Bind();
-						opaqueShader->UniformMat4f("uProjection", glm::value_ptr(projection));
-						opaqueShader->UniformMat4f("uView", glm::value_ptr(glm::identity<glm::mat4>()));
 
 						auto view = mRegistry.view<TransformComponent, MeshFilterComponent, MeshRendererComponent>();
 
@@ -850,12 +917,16 @@ namespace FoxEngine
 
 							if (transform.tag != "__icon") continue;
 
-							opaqueShader->UniformMat4f("uModel", glm::value_ptr(transform.transform.ToMatrix()));
+							meshRenderer.shader->Bind();
+							meshRenderer.shader->UniformMat4f("uProjection", glm::value_ptr(glm::perspectiveFov(glm::radians(60.0f), (float)size, (float)size, 0.01f, 10.0f)));
+							meshRenderer.shader->UniformMat4f("uView", glm::value_ptr(glm::identity<glm::mat4>()));
+							meshRenderer.shader->UniformMat4f("uModel", glm::value_ptr(transform.transform.ToMatrix()));
+
 							meshRenderer.texture->Bind();
 							meshFilter.mesh->Draw();
 						}
 
-						glBindTexture(GL_TEXTURE_2D, iconTex);
+						iconTex->Bind();
 						glGetTexImage(GL_TEXTURE_2D, 0, GL_RGBA, GL_UNSIGNED_BYTE, pixels.get());
 
 						GLFWimage image;

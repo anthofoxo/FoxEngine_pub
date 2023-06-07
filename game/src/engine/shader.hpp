@@ -29,5 +29,7 @@ namespace FoxEngine
 		virtual void Uniform1f(std::string_view name, float v0) = 0;  // Deprecate once uniform buffers work
 		virtual void Uniform2f(std::string_view name, float v0, float v1) = 0; // Deprecate once uniform buffers work
 		virtual void UniformMat4f(std::string_view name, const float* v0) = 0;  // Deprecate once uniform buffers work
+
+		virtual bool CullsBackFaces() const noexcept = 0;
 	};
 }

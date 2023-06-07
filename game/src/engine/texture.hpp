@@ -6,6 +6,13 @@
 
 namespace FoxEngine
 {
+	enum struct ImageFormat
+	{
+		Rgba8, D24
+	};
+
+	unsigned int TextureFormatToInternalFormat(ImageFormat format);
+
 	class Texture
 	{
 	public:
@@ -19,10 +26,7 @@ namespace FoxEngine
 			Nearest, Linear
 		};
 
-		enum struct Format
-		{
-			Rgba8
-		};
+		using Format = ImageFormat; // Deprecate this
 
 		struct CreateInfo final
 		{
