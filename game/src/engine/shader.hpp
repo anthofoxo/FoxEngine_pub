@@ -1,7 +1,7 @@
 #pragma once
 
 #include <string_view>
-#include <memory>
+#include "Poly.hpp"
 
 // Shaders need a ton of work still, mostly for preprocessing
 
@@ -16,7 +16,7 @@ namespace FoxEngine
 			std::string_view debugName;
 		};
 	public:
-		static std::unique_ptr<Shader> Create(const CreateInfo& info);
+		static Poly<Shader> Create(const CreateInfo& info);
 
 		constexpr Shader() noexcept = default;
 		virtual ~Shader() noexcept = default;

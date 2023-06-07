@@ -246,19 +246,19 @@ namespace FoxEngine
 				{
 					.filename = "opaque.glsl",
 					.debugName = "opaque.glsl"
-				});
+				}).MakeUnique();
 
 			std::unique_ptr<FoxEngine::Shader> radialBlurShader = FoxEngine::Shader::Create(
 				{
 					.filename = "radial_blur.glsl",
 					.debugName = "radial_blur.glsl"
-				});
+				}).MakeUnique();
 
 			std::unique_ptr<FoxEngine::Shader> sunShader = FoxEngine::Shader::Create(
 				{
 					.filename = "sun.glsl",
 					.debugName = "sun.glsl"
-				});
+				}).MakeUnique();
 
 			Transform cameraTransform;
 

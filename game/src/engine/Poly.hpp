@@ -11,7 +11,7 @@ namespace FoxEngine
 	template<class T>
 	constexpr T* NullOf = nullptr;
 
-	template<class T, size_t S = sizeof(void*) * 4>
+	template<class T, size_t S = sizeof(void*) * 32>
 	class Poly final
 	{
 	public:
