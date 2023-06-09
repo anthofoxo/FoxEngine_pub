@@ -1014,6 +1014,13 @@ static void RedirectWorkingDirectory()
 	{
 		if (std::filesystem::exists(lookingFor))
 		{
+			// The symlink was not respected during cloning, ignore this and just look up the directory tree more
+			if (std::filesystem::is_regular_file(lookingFor))
+			{
+				FoxEngine::Log::Warn("Found content directory as a file, were symlinks not respected when you cloned? Skipped");
+				continue;
+			}
+
 			std::filesystem::current_path(lookingFor);
 			FoxEngine::Log::Info("Engine content directory located");
 			return;
