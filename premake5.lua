@@ -169,7 +169,7 @@ feProject "glfw"
 			"%{prj.location}/src/xkb_unicode.c",
 			"%{prj.location}/src/xkb_unicode.h"
 		}
-		defines "_GLFW_X11"
+		defines { "_GLFW_X11", "_GNU_SOURCE", "_POSIX_C_SOURCE=1999309L" }
 	filter "system:macosx"
 		files
 		{

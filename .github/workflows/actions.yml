@@ -1,0 +1,62 @@
+on:
+  push:
+    branches:
+      - master
+  pull_request:
+    branches:
+      - master
+
+jobs:
+  build-windows:
+    name: Build (Windows, Visual Studio)
+    runs-on:
+      - windows-latest
+    steps:
+      - uses: actions/checkout@v3
+        with:
+          submodules: true
+      - uses: abel0b/setup-premake@v2.2
+        with:
+          version: "5.0.0-beta2"
+      - uses: microsoft/setup-msbuild@v1.1
+        with:
+          msbuild-architecture: x64
+      - name: configure
+        run: premake5 vs2022
+      - name: build
+        run: msbuild game.sln /t:build /p:Configuration=release /m:4
+  build-linux:
+    name: Build (Linux, GNU Make)
+    runs-on:
+      - ubuntu-latest
+    steps:
+      - uses: actions/checkout@v3
+        with:
+          submodules: true
+      - uses: awalsh128/cache-apt-pkgs-action@latest
+        with:
+          packages: xorg-dev
+      - uses: abel0b/setup-premake@v2.2
+        with:
+          version: "5.0.0-beta2"
+      - name: configure
+        run: premake5 gmake2
+      - name: build
+        run: make config=release
+  build-macos:
+    name: Build (macOS, XCode)
+    runs-on:
+      - macos-latest
+    steps:
+      - uses: actions/checkout@v3
+        with:
+          submodules: true
+      - uses: abel0b/setup-premake@v2.2
+        with:
+          version: "5.0.0-beta2"
+      - name: configure
+        run: premake5 xcode4
+      - name: build
+        run: |
+          xcodebuild -workspace game.xcworkspace -configuration release build -scheme game
+
