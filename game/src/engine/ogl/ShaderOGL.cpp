@@ -55,23 +55,31 @@ namespace FoxEngine
 		Blob source = Blob::FromFile(info.filename);
 		std::string stringSource = std::string(reinterpret_cast<char*>(source.data()), source.size());
 
-		std::regex regex("^@pragma\\s+([A-Za-z_]+)\\s");
-		auto words_begin = std::sregex_iterator(stringSource.begin(), stringSource.end(), regex);
-		auto words_end = std::sregex_iterator();
+		// Pragmas
+		{
+			std::regex regex("^@pragma\\s+([A-Za-z_]+)\\s");
 
-		for (std::sregex_iterator i = words_begin; i != words_end; ++i) {
-			std::smatch match = *i;
+			std::smatch match;
 
-			std::string matches = match[1].str();
+			while (std::regex_search(stringSource, match, regex))
+			{
+				std::string matches = match[1].str();
 
-			if (matches == "backface_nocull")
-				mCullsBackfaces = false;			
+				Log::Info("Foxengine shader pragma: {}", matches);
 
-			stringSource = match.prefix().str() + match.suffix().str();
-			
-			Log::Info("Foxengine shader pragma: {}", matches);
-			
+				if (matches == "backface_nocull")
+					mCullsBackfaces = false;
+				else Log::Warn("Unknown shader pragma");
+
+				stringSource = match.prefix().str() + "// (FoxEngine Preprocess) -> " + match[0].str() + match.suffix().str();
+			}
 		}
+
+		// must be matched differently for each shader type
+		// Input
+		// {
+		// 	std::regex regex("^@in\\s+([A-Za-z0-9_]+)\\s+([A-Za-z0-9_]+)\\s*=\\s*([0-9]+)\\s*;");
+		// }
 
 		std::string vertSource = vertCommon + stringSource;
 		std::string fragSource = fragCommon + stringSource;

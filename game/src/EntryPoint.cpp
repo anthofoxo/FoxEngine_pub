@@ -410,6 +410,8 @@ namespace FoxEngine
 			bool showProperties = true;
 			bool showGpuInfo = false;
 
+			bool mouseLocked = false;
+
 			while (mRunning)
 			{
 				FoxEngine::Window::PollEvents();
@@ -419,20 +421,6 @@ namespace FoxEngine
 				deltaTime = currentTime - lastTime;
 				lastTime = currentTime;
 
-				bool cameraEdit = glfwGetMouseButton(mWindow.Handle(), 1) != GLFW_RELEASE;
-
-				if (cameraEdit)
-				{
-					glfwSetInputMode(mWindow.Handle(), GLFW_CURSOR, GLFW_CURSOR_DISABLED);
-					ImGui::GetIO().ConfigFlags |= ImGuiConfigFlags_NoMouse;
-					ImGui::GetIO().ConfigFlags &= ~ImGuiConfigFlags_NavEnableKeyboard;
-				}
-				else
-				{
-					glfwSetInputMode(mWindow.Handle(), GLFW_CURSOR, GLFW_CURSOR_NORMAL);
-					ImGui::GetIO().ConfigFlags &= ~ImGuiConfigFlags_NoMouse;
-					ImGui::GetIO().ConfigFlags |= ImGuiConfigFlags_NavEnableKeyboard;
-				}
 
 				static glm::vec2 last_mouse_pos{};
 
@@ -445,7 +433,7 @@ namespace FoxEngine
 
 				last_mouse_pos = mouse_pos;
 
-				if (cameraEdit)
+				if (mouseLocked)
 				{
 					if (glm::length2(mouse_delta) > 1)
 					{
@@ -510,7 +498,7 @@ namespace FoxEngine
 				}
 
 				static float sun_time = 0;
-
+				static float sun_dist = 5;
 				static int samples = 20;
 
 				{
@@ -518,6 +506,7 @@ namespace FoxEngine
 					{
 						ImGui::DragInt("Radial iterations", &samples, .1f, 0, 128);
 						ImGui::DragFloat("Sun time", &sun_time, 0.001f);
+						ImGui::DragFloat("Sun distance", &sun_dist, 0.01f, 0.1f, 500.0f);
 					}
 					ImGui::End();
 				}
@@ -532,10 +521,34 @@ namespace FoxEngine
 
 					ImGui::SetNextWindowViewport(ImGui::GetMainViewport()->ID);
 
-
+					
 
 					if (ImGui::Begin("Viewport", &showViewport))
 					{
+						
+
+						if (!mouseLocked)
+						{
+							if (ImGui::IsWindowHovered() && ImGui::IsMouseDown(ImGuiMouseButton_Right))
+							{
+								mouseLocked = true;
+								ImGui::SetWindowFocus();
+								glfwSetInputMode(mWindow.Handle(), GLFW_CURSOR, GLFW_CURSOR_DISABLED);
+								ImGui::GetIO().ConfigFlags |= ImGuiConfigFlags_NoMouse;
+								ImGui::GetIO().ConfigFlags &= ~ImGuiConfigFlags_NavEnableKeyboard;
+							}
+						}
+						else
+						{
+							if (!ImGui::IsMouseDown(ImGuiMouseButton_Right))
+							{
+								mouseLocked = false;
+								glfwSetInputMode(mWindow.Handle(), GLFW_CURSOR, GLFW_CURSOR_NORMAL);
+								ImGui::GetIO().ConfigFlags &= ~ImGuiConfigFlags_NoMouse;
+								ImGui::GetIO().ConfigFlags |= ImGuiConfigFlags_NavEnableKeyboard;
+							}
+						}
+
 						ImVec2 size = ImGui::GetContentRegionAvail();
 
 						if (size.x != 0 && size.y != 0)
@@ -551,8 +564,6 @@ namespace FoxEngine
 								// TODO
 								//https://gitea.yiem.net/QianMo/Real-Time-Rendering-4th-Bibliography-Collection/raw/branch/main/Chapter%201-24/[0832]%20[SIGGRAPH%202014]%20Next%20Generation%20Post%20Processing%20in%20Call%20of%20Duty%20Advanced%20Warfare.pdf
 
-
-								// Testing out poly, seems to work, would be amazing to have a way to convert it to a unique_ptr
 								fboTex = FoxEngine::Texture::Create(
 									{
 										.width = vpw,
@@ -658,7 +669,7 @@ namespace FoxEngine
 
 									glm::mat4 pos = glm::identity<glm::mat4>();
 									//pos = glm::translate(pos, glm::vec3(glm::vec2(clipSpace), 0.0f));
-									pos = glm::translate(pos, sunDirection * 5.0f);
+									pos = glm::translate(pos, sunDirection * sun_dist);
 										
 									glm::mat4 view = cameraTransform.ToInverseMatrix();
 

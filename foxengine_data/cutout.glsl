@@ -1,4 +1,4 @@
-@pragma backface_nocull
+@pragma backface_nocull;
 
 input(vec3, inPosition, 0);
 input(vec3, inNormal, 1);
