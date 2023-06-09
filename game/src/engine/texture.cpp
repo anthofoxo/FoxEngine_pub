@@ -49,6 +49,8 @@ namespace FoxEngine
 			return GL_RGBA8;
 		case D24:
 			return GL_DEPTH_COMPONENT24;
+		case Rgba16f:
+			return GL_RGBA16F;
 		}
 
 		throw std::runtime_error("Invalid texture format");
@@ -61,6 +63,7 @@ namespace FoxEngine
 		switch (format)
 		{
 		case Rgba8:
+		case Rgba16f:
 			return GL_RGBA;
 		case D24:
 			return GL_DEPTH_COMPONENT;
@@ -78,6 +81,8 @@ namespace FoxEngine
 		case Rgba8:
 		case D24:
 			return GL_UNSIGNED_BYTE;
+		case Rgba16f:
+			return GL_HALF_FLOAT;
 		}
 
 		throw std::runtime_error("Invalid texture format");
@@ -147,6 +152,11 @@ namespace FoxEngine
 		glTexParameteri(mTarget, GL_TEXTURE_WRAP_S, TextureWrapToWrap(info.wrap));
 		glTexParameteri(mTarget, GL_TEXTURE_WRAP_T, TextureWrapToWrap(info.wrap));
 		glTexParameteri(mTarget, GL_TEXTURE_WRAP_R, TextureWrapToWrap(info.wrap));
+
+		if (!info.debugName.empty() && GLAD_GL_KHR_debug)
+		{
+			glObjectLabel(GL_TEXTURE, mHandle, info.debugName.size(), info.debugName.data());
+		}
 	}
 
 	TextureOGL33::~TextureOGL33() noexcept

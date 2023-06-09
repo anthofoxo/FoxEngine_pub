@@ -43,7 +43,6 @@
 
 // Guidelines for the order of includes should be made
 
-// Error prone, needs more logging ability
 static std::unique_ptr<FoxEngine::Mesh> load_mesh(std::string_view resource)
 {
 	Assimp::Importer importer;
@@ -51,21 +50,21 @@ static std::unique_ptr<FoxEngine::Mesh> load_mesh(std::string_view resource)
 
 	if (!scene || scene->mFlags & AI_SCENE_FLAGS_INCOMPLETE || !scene->mRootNode)
 	{
-		//fe_log_warn("failed to load model: {} with error: {}", resource, importer.GetErrorString());
+		FoxEngine::Log::Warn("failed to load model: {} with error: {}", resource, importer.GetErrorString());
 		return nullptr;
 	}
 
 	if (scene->mNumMeshes == 0)
 	{
-		//fe_log_warn("scene has no meshes");
+		FoxEngine::Log::Warn("scene has no meshes");
 		return nullptr;
 	}
 
-	//if (scene->mNumMeshes != 1)
-		//fe_log_warn("scene has more than one mesh, only the first will be processed");
+	if (scene->mNumMeshes != 1)
+		FoxEngine::Log::Warn("scene has more than one mesh, only the first will be processed");
 
-	//if (scene->mRootNode->mNumChildren != 0)
-		//fe_log_warn("root has children, they will not be processed");
+	if (scene->mRootNode->mNumChildren != 0)
+		FoxEngine::Log::Warn("root has children, they will not be processed");
 
 	aiMesh* mesh = scene->mMeshes[0];
 
@@ -304,6 +303,14 @@ namespace FoxEngine
 					.debugName = "sun.glsl"
 				}).MakeUnique();
 
+			FoxEngine::Poly<FoxEngine::Shader> compositeShader = FoxEngine::Shader::Create(
+				{
+					.filename = "composite.glsl",
+					.debugName = "composite.glsl"
+				});
+
+			
+
 			Transform cameraTransform;
 
 			ResourceManager resourceManager;
@@ -361,12 +368,17 @@ namespace FoxEngine
 			glPolygonMode(GL_FRONT_AND_BACK, GL_FILL);
 			glDisable(GL_MULTISAMPLE);
 
-			unsigned int fbo = 0;
+			unsigned int fboGbuffer = 0;
 			FoxEngine::Poly<FoxEngine::Texture> fboTex;
 			FoxEngine::Poly<FoxEngine::Texture> fboTexBlack;
+			FoxEngine::Poly<FoxEngine::Texture> fboTexNormal;
+			FoxEngine::Poly<FoxEngine::Texture> fboTexPos;
 			FoxEngine::Poly<FoxEngine::Renderbuffer> fboDep;
 			int vpw = 0, vph = 0;
 
+			unsigned int resultFbo = 0;
+			FoxEngine::Poly<FoxEngine::Texture> fboTexRadial;
+			FoxEngine::Poly<FoxEngine::Texture> fboTexFinal;
 
 			unsigned int iconFbo;
 			FoxEngine::Poly<FoxEngine::Texture> iconTex;
@@ -500,17 +512,21 @@ namespace FoxEngine
 				static float sun_time = 0;
 				static float sun_dist = 5;
 				static int samples = 20;
+				static float sunStrength = 2.0f;
+				static glm::vec3 color = glm::vec3(1.0f);
 
 				{
 					if (ImGui::Begin("Lighting"))
 					{
 						ImGui::DragInt("Radial iterations", &samples, .1f, 0, 128);
-						ImGui::DragFloat("Sun time", &sun_time, 0.001f);
+						//ImGui::DragFloat("Sun time", &sun_time, 0.001f);
 						ImGui::DragFloat("Sun distance", &sun_dist, 0.01f, 0.1f, 500.0f);
+						ImGui::DragFloat("Sun strength", &sunStrength, 0.1f, 0.1f, 500.0f);
 					}
 					ImGui::End();
 				}
 
+				sun_time += deltaTime / 100.0f;
 
 				if (showDemoWindow)
 					ImGui::ShowDemoWindow(&showDemoWindow);
@@ -559,7 +575,8 @@ namespace FoxEngine
 								vpw = static_cast<int>(size.x);
 								vph = static_cast<int>(size.y);
 
-								if (fbo) glDeleteFramebuffers(1, &fbo);
+								if (fboGbuffer) glDeleteFramebuffers(1, &fboGbuffer);
+								if (resultFbo) glDeleteFramebuffers(1, &resultFbo);
 						
 								// TODO
 								//https://gitea.yiem.net/QianMo/Real-Time-Rendering-4th-Bibliography-Collection/raw/branch/main/Chapter%201-24/[0832]%20[SIGGRAPH%202014]%20Next%20Generation%20Post%20Processing%20in%20Call%20of%20Duty%20Advanced%20Warfare.pdf
@@ -568,7 +585,7 @@ namespace FoxEngine
 									{
 										.width = vpw,
 										.height = vph,
-										.format = FoxEngine::Texture::Format::Rgba8,
+										.format = FoxEngine::Texture::Format::Rgba16f,
 										.wrap = FoxEngine::Texture::Wrap::Clamp,
 										.min = FoxEngine::Texture::Filter::Nearest,
 										.mag = FoxEngine::Texture::Filter::Nearest,
@@ -580,13 +597,39 @@ namespace FoxEngine
 									{
 										.width = vpw,
 										.height = vph,
-										.format = FoxEngine::Texture::Format::Rgba8,
+										.format = FoxEngine::Texture::Format::Rgba16f,
 										.wrap = FoxEngine::Texture::Wrap::Clamp,
 										.min = FoxEngine::Texture::Filter::Nearest,
 										.mag = FoxEngine::Texture::Filter::Nearest,
 										.debugName = "FBO color att 1"
 
 									});
+
+								fboTexNormal = FoxEngine::Texture::Create(
+									{
+										.width = vpw,
+										.height = vph,
+										.format = FoxEngine::Texture::Format::Rgba8,
+										.wrap = FoxEngine::Texture::Wrap::Clamp,
+										.min = FoxEngine::Texture::Filter::Nearest,
+										.mag = FoxEngine::Texture::Filter::Nearest,
+										.debugName = "FBO color att 2"
+
+									});
+
+								fboTexPos = FoxEngine::Texture::Create(
+									{
+										.width = vpw,
+										.height = vph,
+										.format = FoxEngine::Texture::Format::Rgba16f,
+										.wrap = FoxEngine::Texture::Wrap::Clamp,
+										.min = FoxEngine::Texture::Filter::Nearest,
+										.mag = FoxEngine::Texture::Filter::Nearest,
+										.debugName = "FBO color att 3"
+
+									});
+
+								
 
 								fboDep = FoxEngine::Renderbuffer::Create(
 									{
@@ -595,21 +638,53 @@ namespace FoxEngine
 										.format = FoxEngine::ImageFormat::D24
 									});
 
-								glGenFramebuffers(1, &fbo);
-								glBindFramebuffer(GL_FRAMEBUFFER, fbo);
+								glGenFramebuffers(1, &fboGbuffer);
+								glBindFramebuffer(GL_FRAMEBUFFER, fboGbuffer);
 								glFramebufferTexture2D(GL_FRAMEBUFFER, GL_COLOR_ATTACHMENT0, fboTex->Target(), fboTex->Handle(), 0);
 								glFramebufferTexture2D(GL_FRAMEBUFFER, GL_COLOR_ATTACHMENT1, fboTexBlack->Target(), fboTexBlack->Handle(), 0);
+								glFramebufferTexture2D(GL_FRAMEBUFFER, GL_COLOR_ATTACHMENT2, fboTexNormal->Target(), fboTexNormal->Handle(), 0);
+								glFramebufferTexture2D(GL_FRAMEBUFFER, GL_COLOR_ATTACHMENT3, fboTexPos->Target(), fboTexPos->Handle(), 0);
 								glFramebufferRenderbuffer(GL_FRAMEBUFFER, GL_DEPTH_ATTACHMENT, GL_RENDERBUFFER, fboDep->Handle());
 
-								unsigned int vals[]{ GL_COLOR_ATTACHMENT0, GL_COLOR_ATTACHMENT1 };
-								glDrawBuffers(2, vals);
+								fboTexRadial = FoxEngine::Texture::Create(
+									{
+										.width = vpw,
+										.height = vph,
+										.format = FoxEngine::Texture::Format::Rgba16f,
+										.wrap = FoxEngine::Texture::Wrap::Clamp,
+										.min = FoxEngine::Texture::Filter::Nearest,
+										.mag = FoxEngine::Texture::Filter::Nearest,
+										.debugName = "FBO result att 1"
 
+									});
+
+								fboTexFinal = FoxEngine::Texture::Create(
+									{
+										.width = vpw,
+										.height = vph,
+										.format = FoxEngine::Texture::Format::Rgba8,
+										.wrap = FoxEngine::Texture::Wrap::Clamp,
+										.min = FoxEngine::Texture::Filter::Nearest,
+										.mag = FoxEngine::Texture::Filter::Nearest,
+										.debugName = "FBO result att 0"
+
+									});
+
+								glGenFramebuffers(1, &resultFbo);
+								glBindFramebuffer(GL_FRAMEBUFFER, resultFbo);
+								glFramebufferTexture2D(GL_FRAMEBUFFER, GL_COLOR_ATTACHMENT0, fboTexFinal->Target(), fboTexFinal->Handle(), 0);
+								glFramebufferTexture2D(GL_FRAMEBUFFER, GL_COLOR_ATTACHMENT1, fboTexRadial->Target(), fboTexRadial->Handle(), 0);
 							}
+
+							glm::vec3 lightDir;
 
 							// Perform rendering
 							{
-								glBindFramebuffer(GL_FRAMEBUFFER, fbo);
+								glBindFramebuffer(GL_FRAMEBUFFER, fboGbuffer);
 								glViewport(0, 0, vpw, vph);
+
+								unsigned int vals[]{ GL_COLOR_ATTACHMENT0, GL_COLOR_ATTACHMENT1, GL_COLOR_ATTACHMENT2, GL_COLOR_ATTACHMENT3 };
+								glDrawBuffers(4, vals);
 
 								glClearColor(0, 0, 0, 0);
 								glClear(GL_COLOR_BUFFER_BIT | GL_DEPTH_BUFFER_BIT);
@@ -645,15 +720,37 @@ namespace FoxEngine
 										glEnable(GL_CULL_FACE);
 								}
 
-								float sunStrength = 1.0f;
+								
 								
 								glm::vec2 sunCoordCenter{};
 
 								{
-									float local_time = sun_time * 3.141592f * 2.0f;
+									float local_time = sun_time * glm::pi<float>() * 2.0f;
 
 									glm::vec3 sunDirection = glm::vec3(sin(local_time), sin(local_time) * 2, cos(local_time));
 									sunDirection = glm::normalize(sunDirection);
+
+									lightDir = -sunDirection;
+
+									{
+										auto map = [](float value, float min1, float max1, float min2, float max2) {
+											return min2 + (value - min1) * (max2 - min2) / (max1 - min1);
+										};
+
+										
+										//t = clamp((x - edge0) / (edge1 - edge0), 0.0, 1.0);
+										//return t * t * (3.0 - 2.0 * t);
+
+										glm::vec3 day = glm::vec3(1.0f, 1.0f, 0.97f);
+										glm::vec3 set = glm::vec3(1.0f, 0.4f, 0.1f);
+
+										float setpoint = -0.3;
+
+										color.r = map(lightDir.y, setpoint, -1, set.r, day.r);
+										color.g = map(lightDir.y, setpoint, -1, set.g, day.g);
+										color.b = map(lightDir.y, setpoint, -1, set.b, day.b);
+										if (lightDir.y > setpoint) color = set;
+									}
 
 									glm::mat4 viewM = cameraTransform.ToInverseMatrix();
 									viewM[3][0] = 0;
@@ -688,20 +785,23 @@ namespace FoxEngine
 									sunShader->UniformMat4f("uProjection", glm::value_ptr(projection));
 									sunShader->UniformMat4f("uView", glm::value_ptr(view));
 									sunShader->UniformMat4f("uModel", glm::value_ptr(pos));
-										
-									fsQuad->Draw();
+									sunShader->Uniform3f("uColor", color.x, color.y, color.z);
 
-									// TODO: Add tonemapping
-									// https://www.shadertoy.com/view/ldcSRN
-									// https://www.shadertoy.com/view/fsXcz4
-									// https://www.shadertoy.com/view/4d3SR4
+									fsQuad->Draw();
 								}
 								
 								glDisable(GL_DEPTH_TEST);
-								glEnable(GL_BLEND);
-								glBlendFunc(GL_ONE, GL_ONE);
-								glDisable(GL_DEPTH_TEST);
+								//glEnable(GL_BLEND);
+								//glBlendFunc(GL_ONE, GL_ONE);
 								glDepthMask(GL_FALSE);
+
+
+								glBindFramebuffer(GL_FRAMEBUFFER, resultFbo);
+								
+								{
+									unsigned int vals[]{GL_COLOR_ATTACHMENT1};
+									glDrawBuffers(1, vals);
+								}
 
 								// do radial blur
 								radialBlurShader->Bind();
@@ -711,23 +811,43 @@ namespace FoxEngine
 								radialBlurShader->Uniform1f("uTime", (float)currentTime);
 								radialBlurShader->Uniform1f("uIterations", (float)samples);
 								
-								fboTexBlack->Bind();
+								fboTexBlack->Bind(0);
 
-								unsigned int bufs[] = { GL_COLOR_ATTACHMENT0 };
-								glDrawBuffers(1, bufs);
+								// render meshg radial
+								fsQuad->Draw();
+								
+								{
+									unsigned int bufs[] = { GL_COLOR_ATTACHMENT0 };
+									glDrawBuffers(1, bufs);
+								}
 
-								// render meshg
+								compositeShader->Bind();
+								compositeShader->Uniform1i("uAlbedo", 0);
+								compositeShader->Uniform1i("uNormal", 1);
+								compositeShader->Uniform1i("uPosition", 2);
+								compositeShader->Uniform1i("uRadial", 3);
+								compositeShader->UniformMat4f("uProjection", glm::value_ptr(projection));
+								compositeShader->UniformMat4f("uView", glm::value_ptr(cameraTransform.ToInverseMatrix()));
+								compositeShader->UniformMat4f("uModel", glm::value_ptr(glm::identity<glm::mat4>()));
+
+								compositeShader->Uniform3f("uLightColor", color.r * sunStrength, color.g* sunStrength, color.b* sunStrength);
+								compositeShader->Uniform3f("uLightDirection", lightDir.r, lightDir.g, lightDir.b);
+								
+								
+
+								fboTex->Bind(0);
+								fboTexNormal->Bind(1);
+								fboTexPos->Bind(2);
+								fboTexRadial->Bind(3);
+									
 								fsQuad->Draw();
 
-								unsigned int bufs2[] = { GL_COLOR_ATTACHMENT0, GL_COLOR_ATTACHMENT1 };
-								glDrawBuffers(2, bufs2);
-									
-								glDisable(GL_BLEND);
+								//glDisable(GL_BLEND);
 								glEnable(GL_DEPTH_TEST);
 								glDepthMask(GL_TRUE);
 							}
 
-							ImGui::Image((ImTextureID)(intptr_t)fboTex->Handle(), {(float)vpw, (float)vph}, {0, 1}, {1, 0});
+							ImGui::Image((ImTextureID)(intptr_t)fboTexFinal->Handle(), {(float)vpw, (float)vph}, {0, 1}, {1, 0});
 						}
 
 
@@ -961,9 +1081,6 @@ namespace FoxEngine
 				glClear(GL_COLOR_BUFFER_BIT | GL_DEPTH_BUFFER_BIT);
 				ImGui_ImplOpenGL3_RenderDrawData(ImGui::GetDrawData());
 
-				// Update and Render additional Platform Windows
-				// (Platform functions may change the current OpenGL context, so we save/restore it to make it easier to paste this code elsewhere.
-				//  For this specific demo app we could also call glfwMakeContextCurrent(window) directly)
 				if (ImGui::GetIO().ConfigFlags & ImGuiConfigFlags_ViewportsEnable)
 				{
 					GLFWwindow* backup_current_context = glfwGetCurrentContext();

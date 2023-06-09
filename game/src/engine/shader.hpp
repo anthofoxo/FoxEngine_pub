@@ -26,8 +26,10 @@ namespace FoxEngine
 		Shader& operator=(Shader&&) noexcept = delete;
 
 		virtual void Bind() = 0;
+		virtual void Uniform1i(std::string_view name, int v0) = 0;  // Deprecate once uniform buffers work
 		virtual void Uniform1f(std::string_view name, float v0) = 0;  // Deprecate once uniform buffers work
 		virtual void Uniform2f(std::string_view name, float v0, float v1) = 0; // Deprecate once uniform buffers work
+		virtual void Uniform3f(std::string_view name, float v0, float v1, float v2) = 0; // Deprecate once uniform buffers work
 		virtual void UniformMat4f(std::string_view name, const float* v0) = 0;  // Deprecate once uniform buffers work
 
 		virtual bool CullsBackFaces() const noexcept = 0;

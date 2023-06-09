@@ -34,7 +34,9 @@ float hash12(vec2 p)
 
 vec4 getSample(vec2 coord)
 {
-    return texture(uChannel0, coord);
+    vec4 tex = texture(uChannel0, coord);
+	tex.rgb *= tex.a;
+	return tex;
 }
 
 void main(void)

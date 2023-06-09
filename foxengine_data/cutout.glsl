@@ -6,10 +6,12 @@ input(vec2, inTexCoord, 2);
 
 output(vec4, outColor, 0);
 output(vec4, outBlack, 1);
+output(vec4, outNormal, 2);
+output(vec4, outPos, 3);
 
 varying(vec2, vTexCoord);
 varying(vec3, vNormal);
-varying(vec3, vToCamera);
+varying(vec3, vPos);
 
 uniform mat4 uModel;
 uniform mat4 uView;
@@ -24,7 +26,7 @@ void main(void)
 	gl_Position = uProjection * uView * worldSpace;
 	vNormal = transpose(inverse(mat3(uModel))) * inNormal;
 	vTexCoord = inTexCoord;
-	vToCamera = (inverse(uView) * vec4(0.0, 0.0, 0.0, 1.0)).xyz - worldSpace.xyz;
+	vPos = worldSpace.xyz;
 }
 
 #elif defined FE_FRAG
@@ -38,15 +40,9 @@ void main(void)
 	vec3 surfaceNormal = normalize(vNormal);
 	if(!gl_FrontFacing) surfaceNormal *= -1.0;
 
-	const vec3 lightDir = vec3(0.0, 0.0, -1.0);
-
-	float diffuse = dot(surfaceNormal, -lightDir);
-	float specular = dot(reflect(lightDir, surfaceNormal), normalize(vToCamera));
-
-	outColor.rgb *= max(diffuse, 0.1);
-	outColor.rgb += pow(max(specular, 0.0), 10.0);
-
 	outBlack = vec4(0.0, 0.0, 0.0, 1.0);
+	outNormal = vec4(surfaceNormal * 0.5 + 0.5, 1.0);
+	outPos = vec4(vPos, 0.0);
 }
 
 #endif

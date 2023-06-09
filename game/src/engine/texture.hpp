@@ -8,7 +8,7 @@ namespace FoxEngine
 {
 	enum struct ImageFormat
 	{
-		Rgba8, D24
+		Rgba8, D24, Rgba16f
 	};
 
 	unsigned int TextureFormatToInternalFormat(ImageFormat format);

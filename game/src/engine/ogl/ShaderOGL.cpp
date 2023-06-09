@@ -57,7 +57,7 @@ namespace FoxEngine
 
 		// Pragmas
 		{
-			std::regex regex("^@pragma\\s+([A-Za-z_]+)\\s");
+			std::regex regex("^@pragma\\s+([A-Za-z_]+)\\s*;");
 
 			std::smatch match;
 
@@ -107,7 +107,7 @@ namespace FoxEngine
 
 			glGetProgramInfoLog(mHandle, logLength, nullptr, string.data());
 
-			throw std::runtime_error{ string };
+			Log::Critical(string);
 		}
 
 		GLint uniform_count = 0;
@@ -163,6 +163,15 @@ namespace FoxEngine
 		glUseProgram(mHandle);
 	}
 
+	void ShaderOGL33::Uniform1i(std::string_view name, int v0)
+	{
+		auto it = mUniforms.find(name);
+		if (it == mUniforms.end()) return;
+
+		Bind();
+		glUniform1i(it->second, v0);
+	}
+
 	void ShaderOGL33::Uniform1f(std::string_view name, float v0)
 	{
 		auto it = mUniforms.find(name);
@@ -179,6 +188,15 @@ namespace FoxEngine
 
 		Bind();
 		glUniform2f(it->second, v0, v1);
+	}
+
+	void ShaderOGL33::Uniform3f(std::string_view name, float v0, float v1, float v2)
+	{
+		auto it = mUniforms.find(name);
+		if (it == mUniforms.end()) return;
+
+		Bind();
+		glUniform3f(it->second, v0, v1, v2);
 	}
 
 	void ShaderOGL33::UniformMat4f(std::string_view name, const float* v0)

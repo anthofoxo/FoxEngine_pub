@@ -22,8 +22,10 @@ namespace FoxEngine
 
 		void Bind() override;
 
+		void Uniform1i(std::string_view name, int v0) override;
 		void Uniform1f(std::string_view name, float v0) override;
 		void Uniform2f(std::string_view name, float v0, float v1) override;
+		void Uniform3f(std::string_view name, float v0, float v1, float v2) override;
 		void UniformMat4f(std::string_view name, const float* v0) override;
 		bool CullsBackFaces() const noexcept override { return mCullsBackfaces; }
 	private:
